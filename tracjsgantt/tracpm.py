@@ -2356,14 +2356,17 @@ class TicketRescheduler(Component):
             affected = set()
 
             if 'parents' in old_values.keys() \
+                    and old_values['parents'] \
                     and len(old_values['parents']) != 0:
                 affected.add(str(old_values['parents']))
             if 'blockedby' in old_values.keys() \
+                    and old_values['blockedby'] \
                     and len(old_values['blockedby']) != 0:
                 affected |= \
                     set([x.strip() 
                          for x in old_values['blockedby'].split(',')])
             if 'blocking' in old_values.keys() \
+                    and old_values['blocking'] \
                     and len(old_values['blocking']) != 0:
                 affected |= \
                     set([x.strip() 
