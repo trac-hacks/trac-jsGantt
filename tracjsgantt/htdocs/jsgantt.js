@@ -1429,7 +1429,9 @@ Complete-Displays task percent complete</p>
                   vWeekendGColor = "c3c3c3";
                }
 
-               if (JSGantt.formatDateStr(vScrollDate,'mm/dd/yyyy') == JSGantt.formatDateStr(vTmpDate,'mm/dd/yyyy')) {
+               if (vScrollDate &&
+		   JSGantt.formatDateStr(vScrollDate,'mm/dd/yyyy') == 
+		   JSGantt.formatDateStr(vTmpDate,'mm/dd/yyyy')) {
                    vScrollID = 'id="'+pGanttVar+'-scrollTo"';
                }
                else {
@@ -1462,7 +1464,8 @@ Complete-Displays task percent complete</p>
                else
                   vWeekdayColor = "ffffff";
 
-               if (vTmpDate <= vScrollDate && vScrollDate < vNxtDate ) {
+               if (vScrollDate &&
+		   vTmpDate <= vScrollDate && vScrollDate < vNxtDate ) {
                    vScrollID = 'id="'+pGanttVar+'-scrollTo"';
                }
                else {
@@ -1498,7 +1501,8 @@ Complete-Displays task percent complete</p>
                else
                   vWeekdayColor = "ffffff";
 
-               if (vTmpDate <= vScrollDate && vScrollDate < vNxtDate ) {
+               if (vScrollDate &&
+		   vTmpDate <= vScrollDate && vScrollDate < vNxtDate ) {
                    vScrollID = 'id="'+pGanttVar+'-scrollTo"';
                }
                else {
@@ -1546,7 +1550,8 @@ Complete-Displays task percent complete</p>
                else
                   vWeekdayColor = "ffffff";
 
-               if (vTmpDate <= vScrollDate && vScrollDate < vNxtDate ) {
+               if (vScrollDate &&
+		   vTmpDate <= vScrollDate && vScrollDate < vNxtDate ) {
                    vScrollID = 'id="'+pGanttVar+'-scrollTo"';
                }
                else {
