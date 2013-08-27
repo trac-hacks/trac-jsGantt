@@ -94,6 +94,9 @@ class TracJSGanttSupport(Component):
            """Fields to sort tasks by before display.  May include tickets fields (including custom fields) or 'wbs'.""")
     Option('trac-jsgantt', 'option.scrollTo', None,
            """Date to scroll chart to (yyyy-mm--dd or 'today')""")
+
+    Option('trac-jsGantt', 'option.linkStyle', 'standard',
+            """Style for ticket links; jsgantt (new window) or standard browser behavior like ticket links.""")
      
 
     # ITemplateProvider methods
@@ -186,7 +189,7 @@ All other macro arguments are treated as TracQuery specification (e.g., mileston
                    'openLevel', 'expandClosedTickets', 'colorBy', 'lwidth', 
                    'showdep', 'userMap', 'omitMilestones',
                    'schedule', 'hoursPerDay', 'doResourceLeveling',
-                   'display', 'order', 'scrollTo')
+                   'display', 'order', 'scrollTo', 'linkStyle')
 
         for opt in options:
             self.options[opt] = self.config.get('trac-jsgantt',
@@ -233,6 +236,11 @@ All other macro arguments are treated as TracQuery specification (e.g., mileston
 
     def _gantt_options(self, options):
         opt = ''
+        if (options['linkStyle']):
+            linkStyle = options['linkStyle']
+        else:
+            linkStyle = 'standard'
+        opt += self.GanttID+'.setLinkStyle("%s")\n' % linkStyle
         opt += self.GanttID+'.setShowRes(%s);\n' % options['res']
         opt += self.GanttID+'.setShowDur(%s);\n' % options['dur']
         opt += self.GanttID+'.setShowComp(%s);\n' % options['comp']
