@@ -49,6 +49,56 @@ function htmlspecialchars(str) {
     return str;
 }
 
+/* Adapted from http://www.javascripter.net/faq/ctrl_alt.htm */
+function mouseDown(e) {
+    var ctrlPressed=0;
+    var altPressed=0;
+    var shiftPressed=0;
+    var button="";
+
+    if (parseInt(navigator.appVersion)>3) {
+
+	var evt = e ? e:window.event;
+
+	// Adapted from http://unixpapa.com/js/mouse.html
+	if (evt.which == null) {
+	    /* IE case */
+	    button = (evt.button < 2) ? "LEFT" :
+                ((evt.button == 4) ? "MIDDLE" : "RIGHT");
+	}
+	else {
+	    /* All others */
+	    button = (evt.which < 2) ? "LEFT" :
+                ((evt.which == 2) ? "MIDDLE" : "RIGHT");
+	}
+
+	if (document.layers && navigator.appName=="Netscape"
+	    && parseInt(navigator.appVersion)==4) {
+	    // NETSCAPE 4 CODE
+	    var mString =(e.modifiers+32).toString(2).substring(3,6);
+	    shiftPressed=(mString.charAt(0)=="1");
+	    ctrlPressed =(mString.charAt(1)=="1");
+	    altPressed  =(mString.charAt(2)=="1");
+	}
+	else {
+	    // NEWER BROWSERS [CROSS-PLATFORM]
+	    shiftPressed=evt.shiftKey;
+	    altPressed  =evt.altKey;
+	    ctrlPressed =evt.ctrlKey;
+	}
+
+	JSGantt.mouse = {
+	    "button": button,
+	    "shift" : shiftPressed,
+	    "alt" : altPressed,
+	    "ctrl" : ctrlPressed
+	}
+    }
+
+    return true;
+}
+
+
 /**
 * Creates a task (one row) in gantt object
 * @class TaskItem 
@@ -644,6 +694,13 @@ JSGantt.GanttChart =  function(pGanttVar, pDiv, pFormat, pShowDep)
 * @private
 */ var vShowRes  = 1;
 /**
+* Ticket link style
+* @property vLinkStyle
+* @type String
+* @default "jsgantt"
+* @private
+*/ var vLinkStyle  = "jsgantt";
+/**
 * Show duration column 
 * @property vShowDur 
 * @type Number 
@@ -729,6 +786,12 @@ JSGantt.GanttChart =  function(pGanttVar, pDiv, pFormat, pShowDep)
 										  for(var i = 0; i < arguments.length; i++) {vFormatArr[i] = arguments[i];}
 										  if(vFormatArr.length>4){vFormatArr.length=4;}
 										 };
+/**
+* Set link style to old (jsGantt) or standard
+* @param pShow {String} "jsgantt"|"standard"
+* @method setLinkStyle
+* @return {void}
+*/ this.setLinkStyle  = function(pStyle) { vLinkStyle  = pStyle; };
 /**
 * Show/Hide resource column
 * @param pShow {Number} 1=Show,0=Hide
@@ -1182,6 +1245,12 @@ Complete-Displays task percent complete</p>
 	     vRadioSpan += 1;
 	 }
         
+         if (parseInt(navigator.appVersion)>3) {
+             document.onmousedown = mouseDown;
+             if (navigator.appName=="Netscape") {
+                 document.captureEvents(Event.MOUSEDOWN);
+	     }
+         }
 		   // DRAW the Left-side of the chart (names, resources, comp%)
          vLeftTable =
             '<DIV class=scroll id=leftside><TABLE cellSpacing=0 cellPadding=0 border=0><TBODY>' +
@@ -1278,7 +1347,7 @@ Complete-Displays task percent complete</p>
 
                vLeftTable += 
 		   '<span ' +'class="'+vTaskList[i].getClass()+'" '+
-		   'onclick=JSGantt.taskLink("' + vTaskList[i].getLink() + '","'+vPopupFeatures+'"); ' +
+		   'onclick=JSGantt.taskLink("' + vTaskList[i].getLink() + '","'+vPopupFeatures+'","'+vLinkStyle+'"); ' +
 		   'style="cursor:pointer; display:inline-block;width:'+vNameWidth+'px;overflow:hidden;padding:0px" ' +
 		   'title="'+vTaskList[i].getName()+'"> ' + vTaskList[i].getName() + 
 		   '</span>' +
@@ -1628,7 +1697,7 @@ Complete-Displays task percent complete</p>
 
   	            vRightTable +=
                   '<div id='+pGanttVar+'_bardiv_' + vID + ' style="position:absolute; top:0px; left:' + Math.ceil((vTaskLeft * (vDayWidth) + 1)) + 'px; height: 18px; overflow:hidden;">' +
-                  '  <div id=taskbar_' + vID + ' title="' + vTaskList[i].getName() + ': ' + vDateRowStr + '" style="height: 16px; overflow:hidden; cursor: pointer;" onclick=JSGantt.taskLink"' + vTaskList[i].getLink() + '","'+vPopupFeatures+'");>';
+                  '  <div id=taskbar_' + vID + ' title="' + vTaskList[i].getName() + ': ' + vDateRowStr + '" style="height: 16px; overflow:hidden; cursor: pointer;" onclick=JSGantt.taskLink"' + vTaskList[i].getLink() + '","'+vPopupFeatures+'","'+vLinkStyle+'");>';
 
                if(vTaskList[i].getCompVal() < 100)
  		            {vRightTable += '&loz;</div>' ;}
@@ -1689,7 +1758,7 @@ Complete-Displays task percent complete</p>
 		      '<div id=taskbar_' + vID + ' title="' + vTaskList[i].getName() + ': ' + vDateRowStr + '" class="gtask '+vTaskList[i].getClass()+'" style="background-color:#000000; height: 7px; width:' + Math.ceil((vTaskRight) * (vDayWidth) -1) + 'px;  cursor: pointer;opacity:0.9;'+vTaskList[i].getStyle()+'">' +
                          '<div style="Z-INDEX: -4; float:left; background-color:#666666; height:3px; overflow: hidden; margin-top:1px; ' +
                                'margin-left:1px; margin-right:1px; filter: alpha(opacity=80); opacity:0.8; width:' + vTaskList[i].getCompStr() + '; ' + 
-                               'cursor: pointer;" onclick=JSGantt.taskLink("' + vTaskList[i].getLink() + '","'+vPopupFeatures+'");>' +
+                               'cursor: pointer;" onclick=JSGantt.taskLink("' + vTaskList[i].getLink() + '","'+vPopupFeatures+'","'+vLinkStyle+'");>' +
                            '</div>' +
                         '</div>' +
                         '<div style="Z-INDEX: -4; float:left; background-color:#000000; height:4px; overflow: hidden; width:1px;"></div>' +
@@ -1725,7 +1794,7 @@ Complete-Displays task percent complete</p>
 	            vRightTable +=
                      '<div id='+pGanttVar+'_bardiv_' + vID + ' style="position:absolute; top:4px; left:' + Math.ceil(vTaskLeft * (vDayWidth) + 1) + 'px; height:18px; width:' + Math.ceil((vTaskRight) * (vDayWidth) - 1) + 'px">' +
                         '<div id=taskbar_' + vID + ' title="' + vTaskList[i].getName() + ': ' + vDateRowStr + '" class="gtask '+vTaskList[i].getClass()+'" style="background-color:' + vTaskList[i].getColor() +'; height: 13px; width:' + Math.ceil((vTaskRight) * (vDayWidth) - 1) + 'px; cursor: pointer;opacity:0.9;'+vTaskList[i].getStyle()+'" ' +
-                           'onclick=JSGantt.taskLink("' + vTaskList[i].getLink() + '","'+vPopupFeatures+'"); >' +
+                           'onclick=JSGantt.taskLink("' + vTaskList[i].getLink() + '","'+vPopupFeatures+'","'+vLinkStyle+'"); >' +
                            '<div class=gcomplete style="Z-INDEX: -4; float:left; background-color:black; height:5px; overflow: auto; margin-top:4px; filter: alpha(opacity=40); opacity:0.4; width:' + vTaskList[i].getCompStr() + '; overflow:hidden">' +
                            '</div>' +
                         '</div>';
@@ -2290,18 +2359,29 @@ JSGantt.show =  function (pID, pTop, ganttObj) {
 * @param pFeatures (String) - Feature string (e.g., "status=1,toolbar=1")
 * @return {void}
 */
-JSGantt.taskLink = function(pRef,pFeatures) 
+JSGantt.taskLink = function(pRef,pFeatures,pStyle) 
 
   {
+    var vFeatures, vWinName;
+
     if (pFeatures && pFeatures.length != 0) {
 	vFeatures = pFeatures
     } else {
 	vFeatures = "height=200,width=300"
     }
 
-    var OpenWindow=window.open(pRef, 
-			       "newwin", 
-			       vFeatures);
+    // Old JSGantt behavior
+    if (pStyle == "jsgantt") {
+        vWinName = "newwin";
+    }
+    else if (JSGantt.mouse["button"]=="MIDDLE" || JSGantt.mouse["shift"]) {
+	vWinName = "_blank";
+    }
+    else {
+	vWinName = "_self";
+    }
+
+    window.open(pRef, vWinName, vFeatures);
 
   };
 
