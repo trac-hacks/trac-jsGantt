@@ -2314,12 +2314,12 @@ class TicketRescheduler(Component):
         # @return set of owner strings
         def ownersOf(ids):
             db = self.env.get_db_cnx()
-            inClause = "IN (%s)" % ','.join(('%s',) * len(ids))
             cursor = db.cursor()
-            cursor.execute(("SELECT DISTINCT owner FROM ticket "
-                            "WHERE id " + 
-                           inClause),
-                           list(ids))
+            query = "SELECT DISTINCT owner FROM ticket WHERE id IN (%s)"
+            values = []
+            for tid in ids:
+                values.append([ tid ])
+            cursor.executemany(query, values)
             owners = [row[0] for row in cursor]
             return set(owners)
 
