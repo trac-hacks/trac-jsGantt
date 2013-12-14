@@ -4,9 +4,13 @@ import math
 import copy
 from datetime import timedelta, datetime
 
-from trac.util.datefmt import format_date, to_utimestamp, localtz, to_datetime
 from trac.ticket import ITicketChangeListener, Ticket
 from trac.ticket.query import Query
+from trac.util.datefmt import format_date, localtz, to_datetime
+try:
+    from trac.util.datefmt import to_utimestamp
+except ImportError:
+    from trac.util.datefmt import to_timestamp as to_utimestamp
 
 from trac.config import IntOption, Option, ExtensionOption
 from trac.core import implements, Component, TracError, Interface, ExtensionPoint
