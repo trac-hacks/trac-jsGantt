@@ -25,4 +25,3 @@ tables = [
          Index(['time']),
      ],
     ]
-

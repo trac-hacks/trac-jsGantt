@@ -27,11 +27,10 @@ class IResourceCalendar(Interface):
 class ITaskScheduler(Interface):
     # Schedule each the ticket in tickets with consideration for
     # dependencies, estimated work, hours per day, etc.
-    # 
-    # Assumes tickets is a list returned by TracPM.query(). 
+    #
+    # Assumes tickets is a list returned by TracPM.query().
     #
     # On exit, each ticket has a start and finish that can be accessed
     # with TracPM.start() and finish().  No other changes are made.
     def scheduleTasks(self, options, tickets):
         """Called to schedule tasks"""
-

@@ -1,4 +1,4 @@
-import re 
+import re
 import time
 import math
 import copy
@@ -139,24 +139,24 @@ class TracPM(Component):
     parent_format = None
 
 
-    Option(cfgSection, 'hours_per_estimate', '1', 
+    Option(cfgSection, 'hours_per_estimate', '1',
            """Hours represented by each unit of estimated work""")
-    Option(cfgSection, 'default_estimate', '4.0', 
+    Option(cfgSection, 'default_estimate', '4.0',
            """Default work for an unestimated task, same units as estimate""")
-    Option(cfgSection, 'estimate_pad', '0.0', 
+    Option(cfgSection, 'estimate_pad', '0.0',
            "How much work may be remaining when a task goes over estimate,"+
            " same units as estimate""")
 
     Option(cfgSection, 'fields.percent', None,
-           """Ticket field to use as the data source for the percent 
+           """Ticket field to use as the data source for the percent
               complete column.""")
-    Option(cfgSection, 'fields.estimate', None, 
+    Option(cfgSection, 'fields.estimate', None,
            """Ticket field to use as the data source for estimated work""")
     Option(cfgSection, 'fields.worked', None,
            """Ticket field to use as the data source for completed work""")
-    Option(cfgSection, 'fields.start', None, 
+    Option(cfgSection, 'fields.start', None,
            """Ticket field to use as the data source for start date""")
-    Option(cfgSection, 'fields.finish', None, 
+    Option(cfgSection, 'fields.finish', None,
            """Ticket field to use as the data source for finish date""" )
     Option(cfgSection, 'fields.pred', None,
            """Ticket field to use as the data source for predecessor list""")
@@ -167,18 +167,18 @@ class TracPM(Component):
 
     Option(cfgSection, 'parent_format', '%s',
            """Format of ticket IDs in parent field""")
-    Option(cfgSection, 'milestone_type', '*deprecated*', 
+    Option(cfgSection, 'milestone_type', '*deprecated*',
            """Ticket type for milestone-like tickets (Deprecated; use goal_ticket_type.)""")
-    Option(cfgSection, 'goal_ticket_type', 'milestone', 
+    Option(cfgSection, 'goal_ticket_type', 'milestone',
            """Ticket type for milestone-like tickets""")
-    Option(cfgSection, 'incomplete_milestone_goal_status', 'active', 
+    Option(cfgSection, 'incomplete_milestone_goal_status', 'active',
            """Status to give goal-type tickets representing incomplete Trac milestones""")
-    Option(cfgSection, 'active_goal_statuses', 'active', 
+    Option(cfgSection, 'active_goal_statuses', 'active',
            """List of statuses for goal-type tickets that are active""")
     Option(cfgSection, 'useActuals', '0',
            """Use actual start, finish date for tickets""")
 
-    scheduler = ExtensionOption(cfgSection, 'scheduler', 
+    scheduler = ExtensionOption(cfgSection, 'scheduler',
                                 ITaskScheduler, 'ResourceScheduler')
 
     def __init__(self):
@@ -238,7 +238,7 @@ class TracPM(Component):
                 if len(value) != 3:
                     self.env.log.error('Relation %s is misconfigured. '
                                        'Should have three fields: '
-                                       'table,src,dst; found "%s".' % 
+                                       'table,src,dst; found "%s".' %
                                        (r, value))
                 else:
                     for f in relations[r]:
@@ -252,7 +252,7 @@ class TracPM(Component):
         # Tickets of this type will be treated as goals
         self.goalTicketType = self.config.get(self.cfgSection, 'milestone_type')
         if self.goalTicketType == '*deprecated*':
-            self.goalTicketType = self.config.get(self.cfgSection, 
+            self.goalTicketType = self.config.get(self.cfgSection,
                                                   'goal_ticket_type')
         else:
             self.env.log.info('The milestone_type setting is deprecated.'
@@ -270,7 +270,7 @@ class TracPM(Component):
             self.config.get(self.cfgSection,
                             'incomplete_milestone_goal_status')
 
-        # Hours per estimate unit.  
+        # Hours per estimate unit.
         #
         # If estimate is in hours, this is 1.
         #
@@ -279,7 +279,7 @@ class TracPM(Component):
         self.hpe = float(self.config.get(self.cfgSection, 'hours_per_estimate'))
 
         # Default work in an unestimated task
-        self.dftEst = float(self.config.get(self.cfgSection, 
+        self.dftEst = float(self.config.get(self.cfgSection,
                                             'default_estimate'))
 
         # How much to pad an estimate when a task has run over
@@ -328,9 +328,9 @@ class TracPM(Component):
         if not dateString:
             d = None
         else:
-            d = datetime(*time.strptime(dateString, 
+            d = datetime(*time.strptime(dateString,
                                         self.dbDateFormat)[0:7])
-            d = d.replace(hour=0, minute=0, second=0, microsecond=0, 
+            d = d.replace(hour=0, minute=0, second=0, microsecond=0,
                           tzinfo=localtz)
         return d
 
@@ -343,7 +343,7 @@ class TracPM(Component):
             except:
                 raise TracError('Ticket %s has an invalid %s value, "%s".' \
                                     ' It should match the format "%s".' %
-                                (ticket['id'], 
+                                (ticket['id'],
                                  self.fields['start'],
                                  ticket[self.fields['start']],
                                  self.dbDateFormat))
@@ -356,11 +356,11 @@ class TracPM(Component):
     def parseFinish(self, ticket):
         if self.isSet(ticket, 'finish'):
             try:
-                finish = self.parseDbDate(ticket[self.fields['finish']]) 
+                finish = self.parseDbDate(ticket[self.fields['finish']])
             except:
                 raise TracError('Ticket %s has an invalid %s value, "%s".' \
                                     ' It should match the format "%s".' %
-                                (ticket['id'], 
+                                (ticket['id'],
                                  self.fields['finish'],
                                  ticket[self.fields['finish']],
                                  self.dbDateFormat))
@@ -434,7 +434,7 @@ class TracPM(Component):
     # Return a list of integer ticket IDs for immediate precedessors
     # for ticket or an empty list if there are none.
     def predecessors(self, ticket):
-        value = self._fieldValue(ticket, 'pred') 
+        value = self._fieldValue(ticket, 'pred')
         if value == None:
             return []
         else:
@@ -521,8 +521,8 @@ class TracPM(Component):
 
         return hours
 
-    # Return percent complete.  
-    # 
+    # Return percent complete.
+    #
     # If estimate and worked are configured and estimate is not 0,
     # returns 'est/work' as a string.
     #
@@ -581,8 +581,8 @@ class TracPM(Component):
             # Get parents of nodes
             if self.isCfg('parent'):
                 n |= set(self._followLink(nodes,
-                                         'parent', 
-                                         self.parent_format, 
+                                         'parent',
+                                         self.parent_format,
                                          1))
             # Get children of nodes
             if self.isRelation('parent'):
@@ -627,11 +627,11 @@ class TracPM(Component):
 
     # Expand the list of tickets in origins to include those
     # related through field.
-    # 
-    # Recurses following link until 
+    #
+    # Recurses following link until
     #  * no new items are found, or
     #  * field has been followed depth times
-    # 
+    #
     # @param origins a list of ticket IDs as strings
     # @param field the field to follow
     # @param format the format of ticket IDs in field
@@ -656,7 +656,7 @@ class TracPM(Component):
             elif field == relation[1]:
                 (f1, f2, tbl, dst, src) = relation
             else:
-                raise TracError('Relation configuration error for %s' % 
+                raise TracError('Relation configuration error for %s' %
                                 field)
 
             # Build up enough instances of %s to represent all the
@@ -692,7 +692,7 @@ class TracPM(Component):
                             field)
 
         # Get tickets IDs of related tickets as strings
-        nodes = ['%s' % row[0] for row in cursor] 
+        nodes = ['%s' % row[0] for row in cursor]
         # Filter out ticket IDs we already know about
         nodes = [tid for tid in nodes if tid not in origins]
 
@@ -735,8 +735,8 @@ class TracPM(Component):
                     nodes |= set(options['root'].split('|'))
 
                 ids |= nodes
-                ids |= set(self._followLink(nodes, 
-                                            'parent', 
+                ids |= set(self._followLink(nodes,
+                                            'parent',
                                             self.parent_format))
 
         if options.get('goal'):
@@ -765,8 +765,8 @@ class TracPM(Component):
 
                     # Get the children, if parent configured
                     if self.isCfg('parent'):
-                        nodes = nodes2 | set(self._followLink(nodes2, 
-                                                              'parent', 
+                        nodes = nodes2 | set(self._followLink(nodes2,
+                                                              'parent',
                                                               self.parent_format))
                     else:
                         nodes = nodes2
@@ -846,7 +846,7 @@ class TracPM(Component):
                 msName, msDueDate, msCompletedDate = row
 
                 tid = tid - 1
-                milestoneTicket = self._pseudoTicket(tid, 
+                milestoneTicket = self._pseudoTicket(tid,
                                                      msName,
                                                      'Milestone %s' % msName,
                                                      msName)
@@ -947,16 +947,16 @@ class TracPM(Component):
         if len(taskIDs) > 0:
             inClause = "IN (%s)" % ','.join(('%s',) * len(taskIDs))
             cursor.execute("SELECT id, x.time AS begunTime" +
-                           " FROM ticket" + 
-                           " INNER JOIN ticket_change AS x" + 
-                           "     ON (x.ticket = ticket.id AND x.field = %s)" + 
-                           " WHERE x.time = (SELECT MIN(time)" + 
-                           "                 FROM ticket_change AS y" + 
-                           "                 WHERE y.ticket = ticket.id " + 
-                           "                     AND y.field = %s" + 
-                           "                 GROUP BY y.ticket)" + 
-                           "     AND x.oldvalue = %s " + 
-                           "     AND ticket.id " + 
+                           " FROM ticket" +
+                           " INNER JOIN ticket_change AS x" +
+                           "     ON (x.ticket = ticket.id AND x.field = %s)" +
+                           " WHERE x.time = (SELECT MIN(time)" +
+                           "                 FROM ticket_change AS y" +
+                           "                 WHERE y.ticket = ticket.id " +
+                           "                     AND y.field = %s" +
+                           "                 GROUP BY y.ticket)" +
+                           "     AND x.oldvalue = %s " +
+                           "     AND ticket.id " +
                            inClause,
                            ['status', 'status', 'new'] + taskIDs)
             for row in cursor:
@@ -969,17 +969,17 @@ class TracPM(Component):
         closedIDs = [t['id'] for t in tickets if t['status'] == 'closed']
         if len(closedIDs) > 0:
             inClause = "IN (%s)" % ','.join(('%s',) * len(closedIDs))
-            cursor.execute("SELECT id, x.time AS closedTime" + 
-                           " FROM ticket" + 
-                           " INNER JOIN ticket_change AS x" + 
-                           "     ON (x.ticket = ticket.id AND x.field = %s)" + 
-                           " WHERE x.time = (SELECT MAX(time)" + 
-                           "                 FROM ticket_change AS y" + 
-                           "                 WHERE y.ticket = ticket.id " + 
-                           "                     AND y.field = %s" + 
-                           "                 GROUP BY y.ticket)" + 
-                           "     AND x.newvalue = %s " + 
-                           "     AND ticket.id " + 
+            cursor.execute("SELECT id, x.time AS closedTime" +
+                           " FROM ticket" +
+                           " INNER JOIN ticket_change AS x" +
+                           "     ON (x.ticket = ticket.id AND x.field = %s)" +
+                           " WHERE x.time = (SELECT MAX(time)" +
+                           "                 FROM ticket_change AS y" +
+                           "                 WHERE y.ticket = ticket.id " +
+                           "                     AND y.field = %s" +
+                           "                 GROUP BY y.ticket)" +
+                           "     AND x.newvalue = %s " +
+                           "     AND ticket.id " +
                            inClause,
                            ['status', 'status', 'closed'] + closedIDs)
             for row in cursor:
@@ -1009,9 +1009,9 @@ class TracPM(Component):
 
         # Clean up custom fields which might be null ('--') vs. blank ('')
         for t in tickets:
-            nullable = [ 'pred', 'succ', 
-                         'start', 'finish', 
-                         'parent', 
+            nullable = [ 'pred', 'succ',
+                         'start', 'finish',
+                         'parent',
                          'worked', 'estimate', 'percent' ]
             for field in nullable:
                 if self.isField(field):
@@ -1149,7 +1149,7 @@ class TracPM(Component):
 
     # Something like ticket.query.Query() with a slightly different
     # interface.
-    # 
+    #
     # @param options hash of query options (e.g., id, milestone, owner)
     # @param fields set of names of fields that the caller needs
     #     (e.g., 'status')
@@ -1164,8 +1164,8 @@ class TracPM(Component):
         for key in options.keys():
             # FIXME - This test is a kludge.  Need a way to exclude
             # those handled by preQuery() in a data-driven way.
-            if key not in [ 'goal', 'root', 
-                            'start', 'finish', 
+            if key not in [ 'goal', 'root',
+                            'start', 'finish',
                             'useActuals', 'scheduled' ]:
                 query_args[str(key)] = options[key]
 
@@ -1185,12 +1185,12 @@ class TracPM(Component):
         # Tell the query what columns to return
         query_args['col'] = "|".join(self.queryFields() | fields)
 
-        # Construct the querystring. 
-        query_string = '&'.join(['%s=%s' % 
-                                 (str(f), unicode(v)) for (f, v) in 
-                                 query_args.iteritems()]) 
+        # Construct the querystring.
+        query_string = '&'.join(['%s=%s' %
+                                 (str(f), unicode(v)) for (f, v) in
+                                 query_args.iteritems()])
 
-        # Get the Query object. 
+        # Get the Query object.
         query = Query.from_string(self.env, query_string)
 
         # Get all tickets
@@ -1204,7 +1204,7 @@ class TracPM(Component):
     # tickets is an unordered list of tickets as returned by TracPM.query().
     #
     # TracPM.query() preloads schedule data from the database, if present.
-    # 
+    #
     # If options['force'] is True, the precomputed schedule values are
     # ignored and every ticket is rescheduled.
     #
@@ -1241,10 +1241,10 @@ class TracPM(Component):
                 if field in ticketsByID[t['id']]:
                     t[field] = ticketsByID[t['id']][field]
 
-    # Recompute schedule 
+    # Recompute schedule
     #
     # Compute schedule, like computeSchedule(), but on return each
-    # ticket has a "_rescheduled" field if its schedule changed.  
+    # ticket has a "_rescheduled" field if its schedule changed.
     def recomputeSchedule(self, options, tickets):
         # Call computeSchedule
         self.computeSchedule(options, tickets)
@@ -1295,11 +1295,11 @@ class TracPM(Component):
 
         # Propagate dependencies from parent to descendants (first
         # children, then recurse).
-        # 
+        #
         def propagateDependencies(pid):
             parent = ticketsByID[pid]
             # Process predecessors and successors
-            for fieldFunc in [ self.predecessors, 
+            for fieldFunc in [ self.predecessors,
                                self.successors ]:
                 # Set functions to add dependency and its reverse
                 # between two tickets.
@@ -1383,8 +1383,8 @@ class BaseSorter:
         classMap = {}
         db = self.env.get_db_cnx()
         cursor = db.cursor()
-        cursor.execute("SELECT name," + 
-                       db.cast('value', 'int') + 
+        cursor.execute("SELECT name," +
+                       db.cast('value', 'int') +
                        " FROM enum WHERE type=%s", (field,))
         for name, value in cursor:
             classMap[name] = value
@@ -1552,7 +1552,7 @@ class ResourceScheduler(Component):
             # Use default, if set
             if default:
                 self.env.log.info(('No %s implementations enabled. ' +
-                                   'Using default, %s') % 
+                                   'Using default, %s') %
                                   (interface, default))
                 e = default(self.env)
             # Otherwise, we can't go on.
@@ -1561,7 +1561,7 @@ class ResourceScheduler(Component):
         # If more than one, log the one we picked.
         elif i > 1:
             self.env.log.info(('Found %s enabled %s implementations.  ' +
-                              'Using %s.') % 
+                              'Using %s.') %
                               (i, interface, e))
 
         # Return the chosen (or default) implementation.
@@ -1663,7 +1663,7 @@ class ResourceScheduler(Component):
                         # (That is, get to start of the day)
                         delta += timedelta(hours = -h)
                         # Back up to end of previous day
-                        delta += timedelta(hours = 
+                        delta += timedelta(hours =
                                            -(24 - options['hoursPerDay']))
                     else:
                         # Account for the time work this date
@@ -1703,11 +1703,11 @@ class ResourceScheduler(Component):
 
         # TODO: If we have start and estimate, we can figure out
         # finish (opposite case of figuring out start from finish and
-        # estimate as we do now).  
+        # estimate as we do now).
 
         # Schedule a task As Late As Possible
         #
-        # Return a tuple like [start, explicit] where 
+        # Return a tuple like [start, explicit] where
         #   start is the start of the task as a date object
         #
         #   explicit is True if start was parsed from a user
@@ -1765,7 +1765,7 @@ class ResourceScheduler(Component):
                 # Not much we can do at this point so show the user
                 # the data error
                 raise TracError('Ticket %s is part of a loop: %s' %
-                                (t['id'], 
+                                (t['id'],
                                  '->'.join([str(t) for t in self.taskStack])))
 
             self.taskStack.append(t['id'])
@@ -1800,9 +1800,9 @@ class ResourceScheduler(Component):
                         finish = self.pm.parseDbDate(options.get('finish'))
                         # If none, finish at midnight today
                         if finish == None:
-                            finish = datetime.today().replace(hour=0, 
-                                                              minute=0, 
-                                                              second=0, 
+                            finish = datetime.today().replace(hour=0,
+                                                              minute=0,
+                                                              second=0,
                                                               microsecond=0,
                                                               tzinfo=localtz)
                         # Move ahead to beginning of next day so fixup
@@ -1862,8 +1862,8 @@ class ResourceScheduler(Component):
                 else:
                     hours = self.pm.workHours(t)
                     start = t['_calc_finish'][0] + \
-                        _calendarOffset(t, 
-                                        -1*hours, 
+                        _calendarOffset(t,
+                                        -1*hours,
                                         t['_calc_finish'][0])
                     start = [start, t['_calc_finish'][1]]
 
@@ -1902,7 +1902,7 @@ class ResourceScheduler(Component):
                         if pid in ticketsByID:
                             parent = ticketsByID[pid]
                             _schedule_task_asap(parent)
-                            if _betterDate(ticketsByID[pid]['_calc_start'], 
+                            if _betterDate(ticketsByID[pid]['_calc_start'],
                                            start):
                                 start = ticketsByID[pid]['_calc_start']
                         else:
@@ -1938,7 +1938,7 @@ class ResourceScheduler(Component):
                 # Not much we can do at this point so show the user
                 # the data error
                 raise TracError('Ticket %s is part of a loop: %s' %
-                                (t['id'], 
+                                (t['id'],
                                  '->'.join([str(t) for t in self.taskStack])))
 
             self.taskStack.append(t['id'])
@@ -1972,9 +1972,9 @@ class ResourceScheduler(Component):
                         start = self.pm.parseDbDate(options.get('start'))
                         # If none, start at midnight today
                         if start == None:
-                            start = datetime.today().replace(hour=0, 
-                                                             minute=0, 
-                                                             second=0, 
+                            start = datetime.today().replace(hour=0,
+                                                             minute=0,
+                                                             second=0,
                                                              microsecond=0,
                                                              tzinfo=localtz)
 
@@ -2042,8 +2042,8 @@ class ResourceScheduler(Component):
                 # Adjust implicit start for explicit finish
                 if _betterDate(finish, start):
                     hours = self.pm.workHours(t)
-                    start[0] = finish[0] + _calendarOffset(t, 
-                                                           -1*hours, 
+                    start[0] = finish[0] + _calendarOffset(t,
+                                                           -1*hours,
                                                            finish[0])
                     t['_calc_start'] = start
 
@@ -2058,7 +2058,7 @@ class ResourceScheduler(Component):
             return t['_calc_finish']
 
         # Augment tickets in a scheduler-specific way to make
-        # scheduling easier 
+        # scheduling easier
         #
         # If a parent task has a dependency, copy it to its children.
         def _augmentTickets(ticketsByID):
@@ -2090,7 +2090,7 @@ class ResourceScheduler(Component):
         # Generation Scheme) as suggested by Briand and Bezanger in
         # "An any-order SGS for project scheduling with scarce
         # resources and precedence constraints":
-        # 
+        #
         #   A serial-SGS consists of n interations: In each iteration,
         #   an activity is selected according to its priority and
         #   inserted inside a partial schedule at the earliest
@@ -2114,8 +2114,8 @@ class ResourceScheduler(Component):
         #  dependentFunction - Get list of dependents to update
         #      eligibleField in
         def serialSGS(scheduleFunction,
-                      eligibleField, 
-                      nextIndex, 
+                      eligibleField,
+                      nextIndex,
                       dependentFunction):
             unscheduled = ticketsByID.keys()
 
@@ -2274,7 +2274,7 @@ class TicketRescheduler(Component):
     # @param old_values old ticket values as passed to change listener
     #
     # @return True if changes in old_values affect schedule
-    # 
+    #
     # FIXME - Should this be in the TracPM class?
     def _affectsSchedule(self, ticket, old_values):
         # If any of the changed values are schedule related
@@ -2338,7 +2338,7 @@ class TicketRescheduler(Component):
             inClause = "IN (%s)" % ','.join(('%s',) * len(owners))
             cursor = db.cursor()
             cursor.execute(("SELECT id FROM ticket "
-                            "WHERE status!=%s AND owner " + 
+                            "WHERE status!=%s AND owner " +
                            inClause),
                            ['closed'] + list(owners))
             ids = ['%s' % row[0] for row in cursor]
@@ -2367,13 +2367,13 @@ class TicketRescheduler(Component):
                     and old_values['blockedby'] \
                     and len(old_values['blockedby']) != 0:
                 affected |= \
-                    set([x.strip() 
+                    set([x.strip()
                          for x in old_values['blockedby'].split(',')])
             if 'blocking' in old_values.keys() \
                     and old_values['blocking'] \
                     and len(old_values['blocking']) != 0:
                 affected |= \
-                    set([x.strip() 
+                    set([x.strip()
                          for x in old_values['blocking'].split(',')])
 
             # If owner changed, get tickets by old owner.  (New owner is
@@ -2453,11 +2453,11 @@ class TicketRescheduler(Component):
     # Remove tickets that are not required for any goal with one of
     # the configured active statuses.
     #
-    #  1. mark all tickets inactive 
+    #  1. mark all tickets inactive
     #  2. for each active goal
-    #    2.1 follow predecessor links to mark tickets active 
+    #    2.1 follow predecessor links to mark tickets active
     #  3. Delete all inactive tickets (and fix up dependencies)
-    # 
+    #
     # @param tickets a list of tickets
     #
     # @return the list with inactive tickets removed
@@ -2529,7 +2529,7 @@ class TicketRescheduler(Component):
 
             # Remove links to children
             # (Include only children still in the set)
-            t['children'] = [cid for cid in t['children'] 
+            t['children'] = [cid for cid in t['children']
                              if cid in ticketsByID]
 
             # Predecessors and successors
@@ -2566,7 +2566,7 @@ class TicketRescheduler(Component):
     #
     # Note: ticket and old_values are passed to ITicketChangeListener
     # methods.
-    # 
+    #
     # FIXME - this is very specific to Subtickets and MasterTickets
     # and accesses fields directly instead of using accessor
     # functions.  Let's make it work *then* make it pretty.
@@ -2684,11 +2684,11 @@ class TicketRescheduler(Component):
                     # Remove from both ends, if needed
                     for tid in removed:
                         ticketsByID[ticket.id][fwdField] = \
-                            [did for did in 
+                            [did for did in
                              ticketsByID[ticket.id][fwdField]
                              if did != tid]
                         ticketsByID[tid][revField] = \
-                            [did for did in 
+                            [did for did in
                              ticketsByID[tid][revField]
                              if did != ticket.id]
 
@@ -2699,7 +2699,7 @@ class TicketRescheduler(Component):
                             ticketsByID[tid][revField].append(ticket.id)
 
 
-    # Reschedule based on a ticket changing.  
+    # Reschedule based on a ticket changing.
     #
     # Arguments as for TicketChangeListener.
     #
@@ -2732,8 +2732,8 @@ class TicketRescheduler(Component):
                 potentiallyIdle = set([int(t) for t in potentiallyIdle])
                 # pretty_timedelta is ugly. :-/  Doesn't show fractional seconds
                 end = datetime.now()
-                profile.append([ 'remembering', 
-                                 len(potentiallyIdle), 
+                profile.append([ 'remembering',
+                                 len(potentiallyIdle),
                                  end - start ])
 
         # This ticket may go idle if it moves to another goal.
@@ -2814,9 +2814,9 @@ class TicketRescheduler(Component):
             # Limit to the active tickets.
             tickets = [t for t in tickets if t['id'] in activeIDs]
 
-            # Compute schedule with configured options 
+            # Compute schedule with configured options
             schedule = timedelta()
-            self.env.log.info('Recomputing schedule with options:%s' % 
+            self.env.log.info('Recomputing schedule with options:%s' %
                               self.options)
             start = datetime.now()
             self.pm.recomputeSchedule(self.options, tickets)
@@ -2887,7 +2887,7 @@ class TicketRescheduler(Component):
 
                 # Third, insert the history for the updated tickets.
                 if len(toUpdate) != 0:
-                    valuesClause = ','.join(('(%s,%s,%s,%s,%s,%s)',) 
+                    valuesClause = ','.join(('(%s,%s,%s,%s,%s,%s)',)
                                             * len(toUpdate))
                     cursor.execute('INSERT INTO schedule_change' + \
                                        ' (ticket, time,' + \
@@ -2908,7 +2908,7 @@ class TicketRescheduler(Component):
                     values = []
                     for t in tickets:
                         if t['id'] in toInsert:
-                            values.append(t['id']) 
+                            values.append(t['id'])
                             values.append(to_utimestamp(self.pm.start(t)))
                             values.append(to_utimestamp(self.pm.finish(t)))
                     cursor.execute('INSERT INTO schedule' + \
@@ -2938,7 +2938,7 @@ class TicketRescheduler(Component):
                 profile.append([ 'inserting', len(toInsert), end - start ])
 
         for step in profile:
-            self.env.log.info('%s %s tickets took %s' % 
+            self.env.log.info('%s %s tickets took %s' %
                               (step[0], step[1], step[2]))
 
     # ITicketChangeListener methods

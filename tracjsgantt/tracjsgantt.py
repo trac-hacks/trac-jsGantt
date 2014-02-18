@@ -46,38 +46,38 @@ except ImportError:
 # ========================================================================
 class TracJSGanttSupport(Component):
     implements(IRequestFilter, ITemplateProvider)
-    
-    Option('trac-jsgantt', 'option.format', 'day', 
+
+    Option('trac-jsgantt', 'option.format', 'day',
            """Initial format of Gantt chart""")
-    Option('trac-jsgantt', 'option.formats', 'day|week|month|quarter', 
+    Option('trac-jsgantt', 'option.formats', 'day|week|month|quarter',
            """Formats to show for Gantt chart""")
     IntOption('trac-jsgantt', 'option.sample', 0,
               """Show sample Gantt""")
-    IntOption('trac-jsgantt', 'option.res', 1, 
+    IntOption('trac-jsgantt', 'option.res', 1,
               """Show resource column""")
-    IntOption('trac-jsgantt', 'option.dur', 1, 
-              """Show duration column""")              
+    IntOption('trac-jsgantt', 'option.dur', 1,
+              """Show duration column""")
     IntOption('trac-jsgantt', 'option.comp', 1,
-              """Show percent complete column""")              
+              """Show percent complete column""")
     Option('trac-jsgantt', 'option.caption', 'Resource',
            """Caption to follow task in Gantt""")
-    IntOption('trac-jsgantt', 'option.startDate', 1, 
+    IntOption('trac-jsgantt', 'option.startDate', 1,
               """Show start date column""")
-    IntOption('trac-jsgantt', 'option.endDate', 1, 
+    IntOption('trac-jsgantt', 'option.endDate', 1,
               """Show finish date column""")
-    Option('trac-jsgantt', 'option.dateDisplay', 'mm/dd/yyyy', 
+    Option('trac-jsgantt', 'option.dateDisplay', 'mm/dd/yyyy',
            """Format to display dates""")
-    IntOption('trac-jsgantt', 'option.openLevel', 999, 
+    IntOption('trac-jsgantt', 'option.openLevel', 999,
               """How many levels of task hierarchy to show open""")
-    IntOption('trac-jsgantt', 'option.expandClosedTickets', 1, 
+    IntOption('trac-jsgantt', 'option.expandClosedTickets', 1,
               """Show children of closed tasks in the task hierarchy""")
-    Option('trac-jsgantt', 'option.colorBy', 'priority', 
+    Option('trac-jsgantt', 'option.colorBy', 'priority',
            """Field to use to color tasks""")
-    IntOption('trac-jsgantt', 'option.lwidth', None, 
+    IntOption('trac-jsgantt', 'option.lwidth', None,
               """Width (in pixels) of left table""")
-    IntOption('trac-jsgantt', 'option.showdep', 1, 
+    IntOption('trac-jsgantt', 'option.showdep', 1,
               """Show dependencies in Gantt""")
-    IntOption('trac-jsgantt', 'option.userMap', 1, 
+    IntOption('trac-jsgantt', 'option.userMap', 1,
               """Map user IDs to user names""")
     IntOption('trac-jsgantt', 'option.omitMilestones', 0,
               """Omit milestones""")
@@ -97,7 +97,7 @@ class TracJSGanttSupport(Component):
 
     Option('trac-jsGantt', 'option.linkStyle', 'standard',
             """Style for ticket links; jsgantt (new window) or standard browser behavior like ticket links.""")
-     
+
 
     # ITemplateProvider methods
     def get_htdocs_dirs(self):
@@ -111,7 +111,7 @@ class TracJSGanttSupport(Component):
         # I think we should look for a TracJSGantt on the page and set
         # a flag for the post_process_request handler if found
         return handler
-            
+
     def post_process_request(self, req, template, data, content_type):
         add_script(req, 'tracjsgantt/jsgantt.js')
         add_stylesheet(req, 'tracjsgantt/jsgantt.css')
@@ -184,9 +184,9 @@ All other macro arguments are treated as TracQuery specification (e.g., mileston
 
         # All the macro's options with default values.
         # Anything else passed to the macro is a TracQuery field.
-        options = ('format', 'formats', 'sample', 'res', 'dur', 'comp', 
-                   'caption', 'startDate', 'endDate', 'dateDisplay', 
-                   'openLevel', 'expandClosedTickets', 'colorBy', 'lwidth', 
+        options = ('format', 'formats', 'sample', 'res', 'dur', 'comp',
+                   'caption', 'startDate', 'endDate', 'dateDisplay',
+                   'openLevel', 'expandClosedTickets', 'colorBy', 'lwidth',
                    'showdep', 'userMap', 'omitMilestones',
                    'schedule', 'hoursPerDay', 'doResourceLeveling',
                    'display', 'order', 'scrollTo', 'linkStyle')
@@ -228,7 +228,7 @@ All other macro arguments are treated as TracQuery specification (e.g., mileston
 
     def _end_gantt(self, options):
         chart = ''
-        chart += self.GanttID+'.Draw();\n' 
+        chart += self.GanttID+'.Draw();\n'
         if options['showdep']:
             chart += self.GanttID+'.DrawDependencies();\n'
         chart += '</script>\n'
@@ -249,7 +249,7 @@ All other macro arguments are treated as TracQuery specification (e.g., mileston
         w = options['lwidth']
         if w:
             opt += self.GanttID+'.setLeftWidth(%s);\n' % w
-            
+
 
         opt += self.GanttID+'.setCaptionType("%s");\n' % \
             javascript_quote(options['caption'])
@@ -305,12 +305,12 @@ All other macro arguments are treated as TracQuery specification (e.g., mileston
 
         # The fields always needed by the Gantt
         fields = set([
-            'description', 
-            'owner', 
-            'type', 
-            'status', 
-            'summary', 
-            'milestone', 
+            'description',
+            'owner',
+            'type',
+            'status',
+            'summary',
+            'milestone',
             'priority'])
 
         # Make sure the coloring field is included
@@ -321,7 +321,7 @@ All other macro arguments are treated as TracQuery specification (e.g., mileston
 
         # Do permissions check on tickets
         tickets = [t for t in rawtickets
-                   if 'TICKET_VIEW' in self.req.perm('ticket', t['id'])] 
+                   if 'TICKET_VIEW' in self.req.perm('ticket', t['id'])]
 
         return tickets
 
@@ -346,7 +346,7 @@ All other macro arguments are treated as TracQuery specification (e.g., mileston
             return 0
 
     # Compute WBS for sorting and figure out the tickets' levels for
-    # controlling how many levels are open.  
+    # controlling how many levels are open.
     #
     # WBS is a list like [ 2, 4, 1] (the first child of the fourth
     # child of the second top-level element).
@@ -363,14 +363,14 @@ All other macro arguments are treated as TracQuery specification (e.g., mileston
                 childTickets = [self.ticketsByID[cid] for cid in childIDs]
                 childTickets.sort(self._compare_tickets)
                 childIDs = [ct['id'] for ct in childTickets]
-                
+
                 # Add another level
                 wbs.append(1)
                 for c in childIDs:
                     wbs = _setLevel(c, wbs, level+1)
                 # Remove the level we added
                 wbs.pop()
-            
+
 
             # Increment last element of wbs
             wbs[len(wbs)-1] += 1
@@ -400,8 +400,8 @@ All other macro arguments are treated as TracQuery specification (e.g., mileston
             self.classMap = {}
             db = self.env.get_db_cnx()
             cursor = db.cursor()
-            cursor.execute("SELECT name," + 
-                           db.cast('value', 'int') + 
+            cursor.execute("SELECT name," +
+                           db.cast('value', 'int') +
                            " FROM enum WHERE type=%s", (field,))
             for name, value in cursor:
                 self.classMap[name] = value
@@ -431,7 +431,7 @@ All other macro arguments are treated as TracQuery specification (e.g., mileston
         if display == None:
             display = '#ff7f3f'
         return display
-        
+
 
     # Format a ticket into JavaScript source to display the
     # task. ticket is expected to have:
@@ -467,7 +467,7 @@ All other macro arguments are treated as TracQuery specification (e.g., mileston
                     if self.user_map.get(owner_name):
                         owner_name = self.user_map[owner_name]
             return owner_name
-            
+
         task = ''
 
         # pID, pName
@@ -512,8 +512,8 @@ All other macro arguments are treated as TracQuery specification (e.g., mileston
             task += '%s,' % 1
         else:
             task += '%s,' % 0
-        
-        # pParent (parent task ID) 
+
+        # pParent (parent task ID)
         # If there's no parent, don't link to it
         if self.pm.parent(ticket) == None:
             task += '%s,' % 0
@@ -535,8 +535,8 @@ All other macro arguments are treated as TracQuery specification (e.g., mileston
             task += '"%s",' % javascript_quote(','.join(pred))
         else:
             task += '"%s",' % javascript_quote(','.join(''))
-        
-        # caption 
+
+        # caption
         # FIXME - if caption isn't set to caption, use "" because the
         # description could be quite long and take a long time to make
         # safe and display.
@@ -586,7 +586,7 @@ All other macro arguments are treated as TracQuery specification (e.g., mileston
             omitMilestones = True
         else:
             omitMilestones = False
-        
+
         # Filter the tickets
         filteredTickets = []
         for ticket in tickets:
@@ -611,7 +611,7 @@ All other macro arguments are treated as TracQuery specification (e.g., mileston
             if fieldDisplay:
                 filteredTickets.append(ticket)
 
-        
+
         return filteredTickets
 
     # Sort tickets by options['order'].  For example,
@@ -621,7 +621,7 @@ All other macro arguments are treated as TracQuery specification (e.g., mileston
     # #Sort_Stability_and_Complex_Sorts) notes that Python list
     # sorting is stable so you can sort by increasing priority of keys
     # (tertiary, then secondary, then primary) to get a multi-key
-    # sort.  
+    # sort.
     #
     # FIXME - this sorts enums by text, not value.
     def _sortTickets(self, tickets, options):
@@ -675,7 +675,7 @@ All other macro arguments are treated as TracQuery specification (e.g., mileston
             self.tickets.sort(self._compare_tickets)
 
             # Compute the WBS
-            self._compute_wbs()                
+            self._compute_wbs()
 
             # Set the link for clicking through the Gantt chart
             for t in self.tickets:
@@ -716,7 +716,7 @@ All other macro arguments are treated as TracQuery specification (e.g., mileston
             options['max'] = 999
 
         return options
- 
+
     def expand_macro(self, formatter, name, content):
         self.req = formatter.req
 
