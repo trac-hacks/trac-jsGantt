@@ -82,7 +82,7 @@ class TracPM(Component):
     def environment_created(self):
         self.log.info('Creating environment for TracPM.')
         self.found_db_version = 0
-        self.upgrade_environment(self.env.get_db_ctx())
+        self.upgrade_environment(self.env.get_db_cnx())
 
 
     def environment_needs_upgrade(self, db):
