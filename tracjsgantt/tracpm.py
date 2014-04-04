@@ -1821,6 +1821,7 @@ class ResourceScheduler(Component):
                 # need to be resource leveled.
                 if options.get('doResourceLeveling') == '1' and \
                         t['type'] != self.pm.goalTicketType and \
+                        not self.pm.children(t) and \
                         t['status'] != 'closed':
                     limit = self.limits.get(t['owner'])
                     if limit and limit < finish[0]:
@@ -1879,7 +1880,7 @@ class ResourceScheduler(Component):
 
 
             # Remember the limit for open tickets
-            if t['status'] != 'closed':
+            if t['status'] != 'closed' and not self.pm.children(t):
                 limit = self.limits.get(t['owner'])
                 if not limit or limit > t['_calc_start'][0]:
                     self.limits[t['owner']] = t['_calc_start'][0]
@@ -1992,6 +1993,7 @@ class ResourceScheduler(Component):
                 # need to be resource leveled.
                 if options.get('doResourceLeveling') == '1' and \
                         t['type'] != self.pm.goalTicketType and \
+                        not self.pm.children(t) and \
                         t['status'] != 'closed':
                     limit = self.limits.get(t['owner'])
                     if limit and limit > start[0]:
@@ -2048,7 +2050,7 @@ class ResourceScheduler(Component):
                     t['_calc_start'] = start
 
             # Remember the limit for open tickets
-            if t['status'] != 'closed':
+            if t['status'] != 'closed' and not self.pm.children(t):
                 limit = self.limits.get(t['owner'])
                 if not limit or limit < t['_calc_finish'][0]:
                     self.limits[t['owner']] = t['_calc_finish'][0]
