@@ -2,4 +2,5 @@
 build
 dist
 Trac_jsGantt.egg-info
+*.out
 *.pyc
