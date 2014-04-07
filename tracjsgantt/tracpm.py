@@ -1711,27 +1711,7 @@ class ResourceScheduler(Component):
         # TODO: If we have start and estimate, we can figure out
         # finish (opposite case of figuring out start from finish and
         # estimate as we do now).  
-        def _schedule_task(t, ancestorLimit):
-            # Find the earliest start of any successor
-            # t is a ticket (list of ticket fields)
-            # start is a tuple ([date, explicit])
-            def _earliest_successor(t, start):
-                for tid in self.pm.successors(t):
-                    if tid in ticketsByID:
-                        s = _schedule_task_alap(ticketsByID[tid])
-                        if _betterDate(s, start) and \
-                                start == None or \
-                                (s and start and s[0] < start[0]):
-                            start = s
-                    else:
-                        self.env.log.info(('Ticket %s has successor %s ' +
-                                           'but %s is not in the chart. ' +
-                                           'Dependency deadlines ignored.') %
-                                          (t['id'], tid, tid))
-                self._logSch('earliest successor for %s is %s' %
-                             (t['id'], start))
-                return copy.copy(start)
-
+        def _schedule_task(t, ancestorLimit, dependentLimit):
             # If we found a loop, tell the user and give up.
             if t['id'] in self.taskStack:
                 # We want to show the whole loop so add the current ID
@@ -1762,7 +1742,7 @@ class ResourceScheduler(Component):
                     finish = [finish, True]
                 # Otherwise, compute finish from dependencies.
                 else:
-                    finish = _earliest_successor(t, ancestorLimit(t))
+                    finish = dependentLimit(t, ancestorLimit(t))
 
                     # The finish derived from the earliest successor
                     # is *not* a fixed (user-specified) date.
@@ -1897,7 +1877,28 @@ class ResourceScheduler(Component):
                              (t['id'], finish))
                 return copy.copy(finish)
 
-            return _schedule_task(t, _ancestor_finish)
+            # Find the earliest start of any successor
+            # t is a ticket (list of ticket fields)
+            # start is a tuple ([date, explicit])
+            def _earliest_successor(t, start):
+                for tid in self.pm.successors(t):
+                    if tid in ticketsByID:
+                        s = _schedule_task_alap(ticketsByID[tid])
+                        if _betterDate(s, start) and \
+                                start == None or \
+                                (s and start and s[0] < start[0]):
+                            start = s
+                    else:
+                        self.env.log.info(('Ticket %s has successor %s ' +
+                                           'but %s is not in the chart. ' +
+                                           'Dependency deadlines ignored.') %
+                                          (t['id'], tid, tid))
+                self._logSch('earliest successor for %s is %s' %
+                             (t['id'], start))
+                return copy.copy(start)
+
+            return _schedule_task(t, _ancestor_finish, _earliest_successor)
+
 
         # Schedule a task As Soon As Possible
         # Return the finish of the task as a date object
