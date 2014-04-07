@@ -1710,10 +1710,6 @@ class ResourceScheduler(Component):
         # explicit date but the contraints (e.g., from resource
         # leveling) make it start earlier/later.  We should log a
         # warning when that hapens.
-        #
-        # TODO: If we have start and estimate, we can figure out
-        # finish (opposite case of figuring out start from finish and
-        # estimate as we do now).  
         def _schedule_task(t, ancestorLimit, dependentLimit,
                            fromField, toField, compareLimits,
                            wrapDay):
@@ -1945,7 +1941,8 @@ class ResourceScheduler(Component):
 
 
         # Schedule a task As Soon As Possible
-        # Return the finish of the task as a date object
+        #
+        # See _schedule_task_alap() for description of argument and return.
         def _schedule_task_asap(t):
             # Find the start of the closest ancestor with one set (if any)
             def _ancestor_start(t):
@@ -1986,133 +1983,38 @@ class ResourceScheduler(Component):
                                           (t['id'], tid, tid))
                 return copy.copy(finish)
 
-            # If we found a loop, tell the user and give up.
-            if t['id'] in self.taskStack:
-                # We want to show the whole loop so add the current ID
-                # to the list
-                self.taskStack.append(t['id'])
-                # Not much we can do at this point so show the user
-                # the data error
-                raise TracError('Ticket %s is part of a loop: %s' %
-                                (t['id'],
-                                 '->'.join([str(t) for t in self.taskStack])))
-
-            self.taskStack.append(t['id'])
-
-            # If we haven't scheduled this yet, do it now.
-            if t.get('_calc_start') == None:
-                # If work has begun, the start is the actual start.
-                if t.get('_actual_start') and options.get('useActuals'):
-                    start = [ to_datetime(t['_actual_start']), True ]
-                # If there is a precomputed start in the database,
-                # use it unless we're forcing a schedule calculation.
-                elif t.get('_sched_start') and not options.get('force'):
-                    start = [ to_datetime(t['_sched_start']), True ]
-                # If there is a start set, use it
-                elif self.pm.isSet(t, 'start'):
-                    # Don't adjust for work week; use the explicit date.
-                    start = self.pm.parseStart(t)
-                    start = [start, True]
-                # Otherwise, compute start from dependencies.
+            def _compare_asap_limits(a, b):
+                delta = a - b
+                # Technically we should include microseconds but we
+                # round those all off everywhere.
+                seconds = 24 * 60 * 60 * delta.days + delta.seconds
+                if (seconds < 0):
+                    retval = 1
+                elif (seconds > 0):
+                    retval = -1
                 else:
-                    start = _latest_predecessor(t, _ancestor_start(t))
+                    retval = 0
+                self._logSch("comparing %s and %s gives %s" %
+                             (a, b, retval))
+                return retval
 
-                    # The start derived from the latest predecessor is
-                    # *not* a fixed (user-specified) date.
-                    if start != None:
-                        start[1] = False
-                    # If dependencies don't give a date, use start of
-                    # project.  Default to today if none given.
-                    else:
-                        # Start at user-supplied start for schedule.
-                        start = self.pm.parseDbDate(options.get('start'))
-                        # If none, start at midnight today
-                        if start == None:
-                            start = datetime.today().replace(hour=0,
-                                                             minute=0,
-                                                             second=0,
-                                                             microsecond=0,
-                                                             tzinfo=localtz)
-
-                        # Move back to end of previous day so fixup
-                        # below will handle work week.
-                        start += timedelta(days=-1,
-                                           hours=options['hoursPerDay'])
-                        start = [start, False]
-
-                # Check resource availability.  Can't finish earlier than
-                # latest available time.
-                #
-                # NOTE: Milestones don't require any work and closed
-                # tickets don't require any (more) work so they don't
-                # need to be resource leveled.
-                if options.get('doResourceLeveling') == '1' and \
-                        t['type'] != self.pm.goalTicketType and \
-                        not self.pm.children(t) and \
-                        t['status'] != 'closed':
-                    limit = self.limits.get(t['owner'])
-                    if limit and limit > start[0]:
-                        start = [limit, True]
-
-                # If we are to start at the end of the work
-                # day, our start is really the beginning of the next
-                # work day
-                if self.pm.isStartOfDay(start[0] -
+            def _wrap_asap_day(s):
+                if self.pm.isStartOfDay(s[0] -
                                         timedelta(hours =
                                                   options['hoursPerDay'])):
-                    s = start[0]
                     # Move ahead to the start of the next day
-                    s += timedelta(hours=24-options['hoursPerDay'])
+                    s[0] += timedelta(hours=24-options['hoursPerDay'])
                     # Adjust for work days as needed
-                    s += _calendarOffset(t, 1, s)
-                    s += timedelta(hours=-1)
-                    start = [s, start[1]]
+                    s[0] += _calendarOffset(t, 1, s[0])
+                    s[0] += timedelta(hours=-1)
+                    self._logSch('Adjusted start of %s to end of day, %s' %
+                                 (t['id'], s))
+                return s
 
-                # Set the field
-                t['_calc_start'] = start
-
-            if t.get('_calc_finish') == None:
-                # If this ticket is closed, the finish is the actual finish.
-                if t.get('_actual_finish') and options.get('useActuals'):
-                    finish = [ to_datetime(t['_actual_finish']), True ]
-                # If there is a precomputed finish in the database,
-                # use it unless we're forcing a schedule calculation.
-                elif t.get('_sched_finish') and not options.get('force'):
-                    finish = [ to_datetime(t['_sched_finish']), True ]
-                elif self.pm.isSet(t, 'finish'):
-                    # Don't adjust for work week; use the explicit date.
-                    finish = self.pm.parseFinish(t)
-                    finish += timedelta(hours=options['hoursPerDay'])
-                    finish = [finish, True]
-                # Otherwise, the start is based on the finish and the
-                # work to be done before then.
-                else:
-                    hours = self.pm.workHours(t)
-                    finish = t['_calc_start'][0] + \
-                        _calendarOffset(t,
-                                        +1*hours,
-                                        t['_calc_start'][0])
-                    finish = [finish, start[1]]
-
-                t['_calc_finish'] = finish
-
-                # Adjust implicit start for explicit finish
-                if _betterDate(finish, start):
-                    hours = self.pm.workHours(t)
-                    start[0] = finish[0] + _calendarOffset(t,
-                                                           -1*hours,
-                                                           finish[0])
-                    t['_calc_start'] = start
-
-            # Remember the limit for open tickets
-            if t['status'] != 'closed' and not self.pm.children(t):
-                limit = self.limits.get(t['owner'])
-                if not limit or limit < t['_calc_finish'][0]:
-                    self.limits[t['owner']] = t['_calc_finish'][0]
-
-            self.taskStack.pop()
-
-            return t['_calc_finish']
+            return _schedule_task(t,
+                                  _ancestor_start, _latest_predecessor,
+                                  'start', 'finish',
+                                  _compare_asap_limits, _wrap_asap_day)
 
         # Augment tickets in a scheduler-specific way to make
         # scheduling easier
