@@ -1712,7 +1712,7 @@ class ResourceScheduler(Component):
         # finish (opposite case of figuring out start from finish and
         # estimate as we do now).  
         def _schedule_task(t, ancestorLimit, dependentLimit,
-                           fromField):
+                           fromField, toField):
             # If we found a loop, tell the user and give up.
             if t['id'] in self.taskStack:
                 # We want to show the whole loop so add the current ID
@@ -1802,48 +1802,48 @@ class ResourceScheduler(Component):
                 # Set the field
                 t['_calc_' + fromField] = taskFrom
 
-            if t.get('_calc_start') == None:
+            if t.get('_calc_' + toField) == None:
                 # If work has begun, the start is the actual start.
-                if t.get('_actual_start') and options.get('useActuals'):
-                    start = [ to_datetime(t['_actual_start']), True ]
+                if t.get('_actual_' + toField) and options.get('useActuals'):
+                    taskTo = [ to_datetime(t['_actual_' + toField]), True ]
                 # If there is a precomputed start in the database,
                 # use it unless we're forcing a schedule calculation.
-                elif t.get('_sched_start') and not options.get('force'):
-                    start = [ to_datetime(t['_sched_start']), True ]
+                elif t.get('_sched_' + toField) and not options.get('force'):
+                    taskTo = [ to_datetime(t['_sched_' + toField]), True ]
                 # If there is an explicit start date, use it.
-                elif self.pm.isSet(t, 'start'):
-                    start = self.pm.parseStart(t)
-                    start = [start, True]
+                elif self.pm.isSet(t, toField):
+                    taskTo = self.pm.parseStart(t)
+                    taskTo = [taskTo, True]
                 # Otherwise, the start is based on the finish and the
                 # work to be done before then.
                 else:
                     hours = self.pm.workHours(t)
-                    start = t['_calc_' + fromField][0] + \
+                    taskTo = t['_calc_' + fromField][0] + \
                         _calendarOffset(t,
                                         -1*hours,
                                         t['_calc_' + fromField][0])
-                    start = [start, t['_calc_' + fromField][1]]
+                    taskTo = [taskTo, t['_calc_' + fromField][1]]
 
-                t['_calc_start'] = start
+                t['_calc_' + toField] = taskTo
 
                 # Adjust implicit finish for explicit start
-                if _betterDate(start, taskFrom):
+                if _betterDate(taskTo, taskFrom):
                     hours = self.pm.workHours(t)
-                    taskFrom[0] = start[0] + _calendarOffset(t,
+                    taskFrom[0] = taskTo[0] + _calendarOffset(t,
                                                            hours,
-                                                           start[0])
+                                                           taskTo[0])
                     t['_calc_' + fromField] = taskFrom
 
 
             # Remember the limit for open tickets
             if t['status'] != 'closed' and not self.pm.children(t):
                 limit = self.limits.get(t['owner'])
-                if not limit or limit > t['_calc_start'][0]:
-                    self.limits[t['owner']] = t['_calc_start'][0]
+                if not limit or limit > t['_calc_' + toField][0]:
+                    self.limits[t['owner']] = t['_calc_' + toField][0]
 
             self.taskStack.pop()
 
-            return t['_calc_start']
+            return t['_calc_' + toField]
 
 
         # Schedule a task As Late As Possible
@@ -1899,7 +1899,7 @@ class ResourceScheduler(Component):
                 return copy.copy(start)
 
             return _schedule_task(t, _ancestor_finish, _earliest_successor,
-                                  'finish')
+                                  'finish', 'start')
 
 
         # Schedule a task As Soon As Possible
