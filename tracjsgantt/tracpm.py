@@ -337,36 +337,27 @@ class TracPM(Component):
     # Parse the start field and return a datetime
     # Return None if the field is not configured or empty.
     def parseStart(self, ticket):
-        if self.isSet(ticket, 'start'):
-            try:
-                start = self.parseDbDate(ticket[self.fields['start']])
-            except:
-                raise TracError('Ticket %s has an invalid %s value, "%s".' \
-                                    ' It should match the format "%s".' %
-                                (ticket['id'],
-                                 self.fields['start'],
-                                 ticket[self.fields['start']],
-                                 self.dbDateFormat))
-        else:
-            start = None
-        return start
+        return self.parseTaskDate(ticket, 'start')
 
     # Parse the finish field and return a datetime
     # Return None if the field is not configured or empty.
     def parseFinish(self, ticket):
-        if self.isSet(ticket, 'finish'):
+        return self.parseTaskDate(ticket, 'finish')
+
+    def parseTaskDate(self, ticket, field):
+        if self.isSet(ticket, field):
             try:
-                finish = self.parseDbDate(ticket[self.fields['finish']])
+                taskDate = self.parseDbDate(ticket[self.fields[field]])
             except:
                 raise TracError('Ticket %s has an invalid %s value, "%s".' \
                                     ' It should match the format "%s".' %
-                                (ticket['id'],
-                                 self.fields['finish'],
-                                 ticket[self.fields['finish']],
+                                (ticket['id'], 
+                                 self.fields[field],
+                                 ticket[self.fields[field]],
                                  self.dbDateFormat))
         else:
-            finish = None
-        return finish
+            taskDate = None
+        return taskDate
 
     # Is d at the start of the day
     #
@@ -1738,7 +1729,7 @@ class ResourceScheduler(Component):
                 # If there is a user-supplied finish (due date) set, use it
                 elif self.pm.isSet(t, fromField):
                     # Don't adjust for work week; use the explicit date.
-                    taskFrom = self.pm.parseFinish(t)
+                    taskFrom = self.pm.parseTaskDate(t, fromField)
                     taskFrom += timedelta(hours=options['hoursPerDay'])
                     taskFrom = [taskFrom, True]
                 # Otherwise, compute finish from dependencies.
@@ -1812,7 +1803,7 @@ class ResourceScheduler(Component):
                     taskTo = [ to_datetime(t['_sched_' + toField]), True ]
                 # If there is an explicit start date, use it.
                 elif self.pm.isSet(t, toField):
-                    taskTo = self.pm.parseStart(t)
+                    taskTo = self.pm.parseTaskDate(t, toField)
                     taskTo = [taskTo, True]
                 # Otherwise, the start is based on the finish and the
                 # work to be done before then.
