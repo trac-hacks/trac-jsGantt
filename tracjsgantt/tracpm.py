@@ -1703,7 +1703,7 @@ class ResourceScheduler(Component):
         # finish (opposite case of figuring out start from finish and
         # estimate as we do now).  
         def _schedule_task(t, ancestorLimit, dependentLimit,
-                           fromField, toField):
+                           fromField, toField, compareLimits):
             # If we found a loop, tell the user and give up.
             if t['id'] in self.taskStack:
                 # We want to show the whole loop so add the current ID
@@ -1771,7 +1771,7 @@ class ResourceScheduler(Component):
                         not self.pm.children(t) and \
                         t['status'] != 'closed':
                     limit = self.limits.get(t['owner'])
-                    if limit and limit < taskFrom[0]:
+                    if limit and compareLimits(limit, taskFrom[0]) == -1:
                         taskFrom = [limit, True]
                         # FIXME - This doesn't handle explicit finish
                         # dates.  End up with negative durations.
@@ -1829,7 +1829,8 @@ class ResourceScheduler(Component):
             # Remember the limit for open tickets
             if t['status'] != 'closed' and not self.pm.children(t):
                 limit = self.limits.get(t['owner'])
-                if not limit or limit > t['_calc_' + toField][0]:
+                if not limit or \
+                        compareLimits(limit, t['_calc_' + toField][0]) == 1:
                     self.limits[t['owner']] = t['_calc_' + toField][0]
 
             self.taskStack.pop()
@@ -1889,8 +1890,24 @@ class ResourceScheduler(Component):
                              (t['id'], start))
                 return copy.copy(start)
 
+            def _compare_alap_limits(a, b):
+                delta = a - b
+                # Technically we should include microseconds but we
+                # round those all off everywhere.
+                seconds = 24 * 60 * 60 * delta.days + delta.seconds
+                if (seconds < 0):
+                    retval = -1
+                elif (seconds > 0):
+                    retval = 1
+                else:
+                    retval = 0
+                self._logSch("comparing %s and %s gives %s" %
+                             (a, b, retval))
+                return retval
+
             return _schedule_task(t, _ancestor_finish, _earliest_successor,
-                                  'finish', 'start')
+                                  'finish', 'start', 
+                                  _compare_alap_limits)
 
 
         # Schedule a task As Soon As Possible
