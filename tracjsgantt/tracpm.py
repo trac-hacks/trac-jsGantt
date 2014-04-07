@@ -1711,30 +1711,7 @@ class ResourceScheduler(Component):
         # TODO: If we have start and estimate, we can figure out
         # finish (opposite case of figuring out start from finish and
         # estimate as we do now).  
-        def _schedule_task(t):
-            # Find the finish of the closest ancestor with one set (if any)
-            def _ancestor_finish(t):
-                finish = None
-                # If there are parent and finish fields
-                if self.pm.isCfg(['finish', 'parent']):
-                    pid = self.pm.parent(t)
-                    # If this ticket has a parent, process it
-                    if pid:
-                        if pid in ticketsByID:
-                            parent = ticketsByID[pid]
-                            _schedule_task_alap(parent)
-                            if _betterDate(ticketsByID[pid]['_calc_finish'],
-                                           finish):
-                                finish = ticketsByID[pid]['_calc_finish']
-                        else:
-                            self.env.log.info(('Ticket %s has parent %s ' +
-                                               'but %s is not in the chart. ' +
-                                               'Ancestor deadlines ignored.') %
-                                              (t['id'], pid, pid))
-                self._logSch('ancestor finish for %s is %s' %
-                             (t['id'], finish))
-                return copy.copy(finish)
-
+        def _schedule_task(t, ancestorLimit):
             # Find the earliest start of any successor
             # t is a ticket (list of ticket fields)
             # start is a tuple ([date, explicit])
@@ -1785,7 +1762,7 @@ class ResourceScheduler(Component):
                     finish = [finish, True]
                 # Otherwise, compute finish from dependencies.
                 else:
-                    finish = _earliest_successor(t, _ancestor_finish(t))
+                    finish = _earliest_successor(t, ancestorLimit(t))
 
                     # The finish derived from the earliest successor
                     # is *not* a fixed (user-specified) date.
@@ -1887,6 +1864,7 @@ class ResourceScheduler(Component):
 
             return t['_calc_start']
 
+
         # Schedule a task As Late As Possible
         #
         # Return a tuple like [start, explicit] where
@@ -1896,8 +1874,30 @@ class ResourceScheduler(Component):
         #   specified value and False if it was inferred as
         #   today
         def _schedule_task_alap(t):
-            return _schedule_task(t)
+            # Find the finish of the closest ancestor with one set (if any)
+            def _ancestor_finish(t):
+                finish = None
+                # If there are parent and finish fields
+                if self.pm.isCfg(['finish', 'parent']):
+                    pid = self.pm.parent(t)
+                    # If this ticket has a parent, process it
+                    if pid:
+                        if pid in ticketsByID:
+                            parent = ticketsByID[pid]
+                            _schedule_task_alap(parent)
+                            if _betterDate(ticketsByID[pid]['_calc_finish'],
+                                           finish):
+                                finish = ticketsByID[pid]['_calc_finish']
+                        else:
+                            self.env.log.info(('Ticket %s has parent %s ' +
+                                               'but %s is not in the chart. ' +
+                                               'Ancestor deadlines ignored.') %
+                                              (t['id'], pid, pid))
+                self._logSch('ancestor finish for %s is %s' %
+                             (t['id'], finish))
+                return copy.copy(finish)
 
+            return _schedule_task(t, _ancestor_finish)
 
         # Schedule a task As Soon As Possible
         # Return the finish of the task as a date object
