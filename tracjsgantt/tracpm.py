@@ -1711,7 +1711,8 @@ class ResourceScheduler(Component):
         # TODO: If we have start and estimate, we can figure out
         # finish (opposite case of figuring out start from finish and
         # estimate as we do now).  
-        def _schedule_task(t, ancestorLimit, dependentLimit):
+        def _schedule_task(t, ancestorLimit, dependentLimit,
+                           fromField):
             # If we found a loop, tell the user and give up.
             if t['id'] in self.taskStack:
                 # We want to show the whole loop so add the current ID
@@ -1726,47 +1727,47 @@ class ResourceScheduler(Component):
             self.taskStack.append(t['id'])
 
             # If we haven't scheduled this yet, do it now.
-            if t.get('_calc_finish') == None:
+            if t.get('_calc_' + fromField) == None:
                 # If this ticket is closed, the finish is the actual finish.
-                if t.get('_actual_finish') and options.get('useActuals'):
-                    finish = [ to_datetime(t['_actual_finish']), True ]
+                if t.get('_actual_' + fromField) and options.get('useActuals'):
+                    taskFrom = [ to_datetime(t['_actual_' + fromField]), True ]
                 # If there is a precomputed finish in the database,
                 # use it unless we're forcing a schedule calculation.
-                elif t.get('_sched_finish') and not options.get('force'):
-                    finish = [ to_datetime(t['_sched_finish']), True ]
+                elif t.get('_sched_' + fromField) and not options.get('force'):
+                    taskFrom = [ to_datetime(t['_sched_' + fromField]), True ]
                 # If there is a user-supplied finish (due date) set, use it
-                elif self.pm.isSet(t, 'finish'):
+                elif self.pm.isSet(t, fromField):
                     # Don't adjust for work week; use the explicit date.
-                    finish = self.pm.parseFinish(t)
-                    finish += timedelta(hours=options['hoursPerDay'])
-                    finish = [finish, True]
+                    taskFrom = self.pm.parseFinish(t)
+                    taskFrom += timedelta(hours=options['hoursPerDay'])
+                    taskFrom = [taskFrom, True]
                 # Otherwise, compute finish from dependencies.
                 else:
-                    finish = dependentLimit(t, ancestorLimit(t))
+                    taskFrom = dependentLimit(t, ancestorLimit(t))
 
                     # The finish derived from the earliest successor
                     # is *not* a fixed (user-specified) date.
-                    if finish != None:
-                        finish[1] = False
+                    if taskFrom != None:
+                        taskFrom[1] = False
                     # If dependencies don't give a date, use finish of
                     # project.  Default to today if none given.
                     else:
                         # Finish at user-supplied finish for schedule.
-                        finish = self.pm.parseDbDate(options.get('finish'))
+                        taskFrom = self.pm.parseDbDate(options.get(fromField))
                         # If none, finish at midnight today
-                        if finish == None:
-                            finish = datetime.today().replace(hour=0,
+                        if taskFrom == None:
+                            taskFrom = datetime.today().replace(hour=0,
                                                               minute=0,
                                                               second=0,
                                                               microsecond=0,
                                                               tzinfo=localtz)
                         # Move ahead to beginning of next day so fixup
                         # below will handle work week.
-                        finish += timedelta(days=1)
+                        taskFrom += timedelta(days=1)
 
-                        finish = [finish, False]
+                        taskFrom = [taskFrom, False]
                         self._logSch('Defaulted finish for %s to %s' %
-                                     (t['id'], finish))
+                                     (t['id'], taskFrom))
 
                 # Check resource availability.  Can't start later than
                 # earliest available time.
@@ -1779,27 +1780,27 @@ class ResourceScheduler(Component):
                         not self.pm.children(t) and \
                         t['status'] != 'closed':
                     limit = self.limits.get(t['owner'])
-                    if limit and limit < finish[0]:
-                        finish = [limit, True]
+                    if limit and limit < taskFrom[0]:
+                        taskFrom = [limit, True]
                         # FIXME - This doesn't handle explicit finish
                         # dates.  End up with negative durations.
 
                 # If we are to finish at the beginning of the work
                 # day, our finish is really the end of the previous
                 # work day
-                if self.pm.isStartOfDay(finish[0]):
-                    f = finish[0]
+                if self.pm.isStartOfDay(taskFrom[0]):
+                    f = taskFrom[0]
                     # Move back one hour from start of day to make
                     # sure finish is on a work day.
                     f += _calendarOffset(t, -1, f)
                     # Move forward one hour to the end of the day
                     f += timedelta(hours=1)
-                    finish[0] = f
+                    taskFrom[0] = f
                     self._logSch('Adjusted finish of %s to end of day, %s' %
-                                 (t['id'], finish))
+                                 (t['id'], taskFrom))
 
                 # Set the field
-                t['_calc_finish'] = finish
+                t['_calc_' + fromField] = taskFrom
 
             if t.get('_calc_start') == None:
                 # If work has begun, the start is the actual start.
@@ -1817,21 +1818,21 @@ class ResourceScheduler(Component):
                 # work to be done before then.
                 else:
                     hours = self.pm.workHours(t)
-                    start = t['_calc_finish'][0] + \
+                    start = t['_calc_' + fromField][0] + \
                         _calendarOffset(t,
                                         -1*hours,
-                                        t['_calc_finish'][0])
-                    start = [start, t['_calc_finish'][1]]
+                                        t['_calc_' + fromField][0])
+                    start = [start, t['_calc_' + fromField][1]]
 
                 t['_calc_start'] = start
 
                 # Adjust implicit finish for explicit start
-                if _betterDate(start, finish):
+                if _betterDate(start, taskFrom):
                     hours = self.pm.workHours(t)
-                    finish[0] = start[0] + _calendarOffset(t,
+                    taskFrom[0] = start[0] + _calendarOffset(t,
                                                            hours,
                                                            start[0])
-                    t['_calc_finish'] = finish
+                    t['_calc_' + fromField] = taskFrom
 
 
             # Remember the limit for open tickets
@@ -1897,7 +1898,8 @@ class ResourceScheduler(Component):
                              (t['id'], start))
                 return copy.copy(start)
 
-            return _schedule_task(t, _ancestor_finish, _earliest_successor)
+            return _schedule_task(t, _ancestor_finish, _earliest_successor,
+                                  'finish')
 
 
         # Schedule a task As Soon As Possible
