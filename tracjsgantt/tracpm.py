@@ -1701,19 +1701,17 @@ class ResourceScheduler(Component):
 
             return better
 
+        # Schedule a task
+        #
+        # FIXME - I think that there may be times when a task has an
+        # explicit date but the contraints (e.g., from resource
+        # leveling) make it start later.  We should log a warning when
+        # that hapens.
+        #
         # TODO: If we have start and estimate, we can figure out
         # finish (opposite case of figuring out start from finish and
-        # estimate as we do now).
-
-        # Schedule a task As Late As Possible
-        #
-        # Return a tuple like [start, explicit] where
-        #   start is the start of the task as a date object
-        #
-        #   explicit is True if start was parsed from a user
-        #   specified value and False if it was it is inferred as
-        #   today
-        def _schedule_task_alap(t):
+        # estimate as we do now).  
+        def _schedule_task(t):
             # Find the finish of the closest ancestor with one set (if any)
             def _ancestor_finish(t):
                 finish = None
@@ -1888,6 +1886,18 @@ class ResourceScheduler(Component):
             self.taskStack.pop()
 
             return t['_calc_start']
+
+        # Schedule a task As Late As Possible
+        #
+        # Return a tuple like [start, explicit] where
+        #   start is the start of the task as a date object
+        #
+        #   explicit is True if start was parsed from a user
+        #   specified value and False if it was inferred as
+        #   today
+        def _schedule_task_alap(t):
+            return _schedule_task(t)
+
 
         # Schedule a task As Soon As Possible
         # Return the finish of the task as a date object
