@@ -1703,7 +1703,8 @@ class ResourceScheduler(Component):
         # finish (opposite case of figuring out start from finish and
         # estimate as we do now).  
         def _schedule_task(t, ancestorLimit, dependentLimit,
-                           fromField, toField, compareLimits):
+                           fromField, toField, compareLimits,
+                           wrapDay):
             # If we found a loop, tell the user and give up.
             if t['id'] in self.taskStack:
                 # We want to show the whole loop so add the current ID
@@ -1716,6 +1717,12 @@ class ResourceScheduler(Component):
                                  '->'.join([str(t) for t in self.taskStack])))
 
             self.taskStack.append(t['id'])
+
+            # Are we scheduling forward or backward?  Compare now to
+            # an hour from how to figure it out.
+            d1 = datetime.now()
+            d2 = d1 + timedelta(hours=1)
+            dir = compareLimits(d1, d2)
 
             # If we haven't scheduled this yet, do it now.
             if t.get('_calc_' + fromField) == None:
@@ -1730,7 +1737,6 @@ class ResourceScheduler(Component):
                 elif self.pm.isSet(t, fromField):
                     # Don't adjust for work week; use the explicit date.
                     taskFrom = self.pm.parseTaskDate(t, fromField)
-                    taskFrom += timedelta(hours=options['hoursPerDay'])
                     taskFrom = [taskFrom, True]
                 # Otherwise, compute from date from dependencies.
                 else:
@@ -1752,9 +1758,6 @@ class ResourceScheduler(Component):
                                                               second=0,
                                                               microsecond=0,
                                                               tzinfo=localtz)
-                        # Move to beginning of next (end of previous)
-                        # day so fixup below will handle work week.
-                        taskFrom += timedelta(days=1)
 
                         taskFrom = [taskFrom, False]
                         self._logSch('Defaulted %s for %s to %s' %
@@ -1778,19 +1781,10 @@ class ResourceScheduler(Component):
                         # FIXME - This doesn't handle explicit from
                         # dates.  End up with negative durations.
 
-                # If we are to finish at the beginning of the work
-                # day, our finish is really the end of the previous
-                # work day
-                if self.pm.isStartOfDay(taskFrom[0]):
-                    f = taskFrom[0]
-                    # Move back one hour from start of day to make
-                    # sure finish is on a work day.
-                    f += _calendarOffset(t, -1, f)
-                    # Move forward one hour to the end of the day
-                    f += timedelta(hours=1)
-                    taskFrom[0] = f
-                    self._logSch('Adjusted %s of %s to end of day, %s' %
-                                 (fromField, t['id'], taskFrom))
+                # Adjust for end of day. (That is, a finish at the
+                # beginning of a day is really at the end of the
+                # previous day.)
+                taskFrom = wrapDay(taskFrom)
 
                 # Set the field
                 t['_calc_' + fromField] = taskFrom
@@ -1813,7 +1807,7 @@ class ResourceScheduler(Component):
                     hours = self.pm.workHours(t)
                     taskTo = t['_calc_' + fromField][0] + \
                         _calendarOffset(t,
-                                        -1*hours,
+                                        dir * hours,
                                         t['_calc_' + fromField][0])
                     taskTo = [taskTo, t['_calc_' + fromField][1]]
 
@@ -1823,7 +1817,7 @@ class ResourceScheduler(Component):
                 if _betterDate(taskTo, taskFrom):
                     hours = self.pm.workHours(t)
                     taskFrom[0] = taskTo[0] + _calendarOffset(t,
-                                                           hours,
+                                                           (-1/dir) * hours,
                                                            taskTo[0])
                     t['_calc_' + fromField] = taskFrom
 
@@ -1912,9 +1906,30 @@ class ResourceScheduler(Component):
                              (a, b, retval))
                 return retval
 
-            return _schedule_task(t, _ancestor_finish, _earliest_successor,
-                                  'finish', 'start', 
-                                  _compare_alap_limits)
+            def _wrap_alap_day(f):
+                if self.pm.isStartOfDay(f[0]):
+                    # If this is a fixed finish, change start of day
+                    # to end of day by adding hours per day.
+                    if f[1]:
+                        f[0] += timedelta(hours=options['hoursPerDay']);
+                    # If this is a derived finish, fixup for work week.
+                    else:
+                        # Move to beginning of next day so fixup below
+                        # will handle work week.
+                        f[0] += timedelta(days=1)
+                        # Move back one hour from start of day to make
+                        # sure finish is on a work day.
+                        f[0] += _calendarOffset(t, -1, f[0])
+                        # Move forward one hour to the end of the day
+                        f[0] += timedelta(hours=1)
+                    self._logSch('Adjusted finish of %s to end of day, %s' %
+                                 (t['id'], f))
+                return f
+
+            return _schedule_task(t,
+                                  _ancestor_finish, _earliest_successor,
+                                  'finish', 'start',
+                                  _compare_alap_limits, _wrap_alap_day)
 
 
         # Schedule a task As Soon As Possible
