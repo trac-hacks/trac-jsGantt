@@ -1694,10 +1694,22 @@ class ResourceScheduler(Component):
 
         # Schedule a task
         #
+        # @param t task to schedule (hash of attributes)
+        # @param ancestorLimit function to return from value based on
+        #        t's ancestors
+        # @param dependentLimit function to return to value based on
+        #        t's dependencies
+        # @param fromField 'start' or 'finish'
+        # @param toField 'finish' or 'start'
+        # @param compareLimit function to compare computed from to
+        #        resource limit
+        # @param wrapDay function to wrap from at beginning or end of
+        #        work day
+        #
         # FIXME - I think that there may be times when a task has an
         # explicit date but the contraints (e.g., from resource
-        # leveling) make it start later.  We should log a warning when
-        # that hapens.
+        # leveling) make it start earlier/later.  We should log a
+        # warning when that hapens.
         #
         # TODO: If we have start and estimate, we can figure out
         # finish (opposite case of figuring out start from finish and
