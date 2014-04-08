@@ -366,9 +366,7 @@ class TracPM(Component):
     # non-zero microseconds.
     def isStartOfDay(self, d):
         # Subtract d from midnight that day
-        delta = d - d.replace(hour=0, minute=0, second=0, microsecond=0,
-                              tzinfo=localtz)
-
+        delta = d - d.replace(hour=0, minute=0, second=0, microsecond=0)
         # If within 5 seconds of midnight, it's midnight.
         #
         # Note that seconds and microseconds are always positive
