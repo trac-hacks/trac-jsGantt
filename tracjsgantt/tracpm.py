@@ -2772,7 +2772,6 @@ class TicketRescheduler(Component):
             tickets = [t for t in tickets if t['id'] in activeIDs]
 
             # Compute schedule with configured options
-            schedule = timedelta()
             self.env.log.info('Recomputing schedule with options:%s' %
                               self.options)
             start = datetime.now()
