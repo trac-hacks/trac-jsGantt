@@ -166,7 +166,7 @@ class TracPM(Component):
            """Ticket field to use as the data source for the parent""")
 
     Option(cfgSection, 'parent_format', '%s',
-           """Format of ticket IDs in parent field""")
+           """Format of ticket IDs in parent field (Only for fields.parent.  Should be blank when configuring parent-child as a relation.)""")
     Option(cfgSection, 'milestone_type', '*deprecated*',
            """Ticket type for milestone-like tickets (Deprecated; use goal_ticket_type.)""")
     Option(cfgSection, 'goal_ticket_type', 'milestone',
