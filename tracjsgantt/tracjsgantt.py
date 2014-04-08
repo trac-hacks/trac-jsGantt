@@ -521,7 +521,7 @@ All other macro arguments are treated as TracQuery specification (e.g., mileston
             task += '%s,' % self.pm.parent(ticket)
 
         # open
-        if ticket['level'] < options['openLevel'] and \
+        if int(ticket['level']) < int(options['openLevel']) and \
                 ((options['expandClosedTickets'] != 0) or \
                      (ticket['status'] != 'closed')):
             openGroup = 1
