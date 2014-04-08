@@ -1575,7 +1575,7 @@ class ResourceScheduler(Component):
     # Log scheduling progress.
     def _logSch(self, msg):
         if self.logEnabled == '1':
-            self.env.log.info(msg)
+            self.env.log.info('sch>' + msg)
 
     # ITaskScheduler method
     # Uses options hoursPerDay and schedule (alap or asap).
@@ -1732,18 +1732,25 @@ class ResourceScheduler(Component):
 
             # If we haven't scheduled this yet, do it now.
             if t.get('_calc_' + fromField) == None:
+                self._logSch('Scheduling %s' % t['id'])
+
                 # Use actual dates, if requested.
                 if t.get('_actual_' + fromField) and options.get('useActuals'):
                     taskFrom = [ to_datetime(t['_actual_' + fromField]), True ]
+                    self._logSch('Using actual %s:%s' % 
+                                 (fromField, taskFrom[0]))
                 # If there is a precomputed date in the database,
                 # use it unless we're forcing a schedule calculation.
                 elif t.get('_sched_' + fromField) and not options.get('force'):
                     taskFrom = [ to_datetime(t['_sched_' + fromField]), True ]
+                    self._logSch('Using db %s: %s' % (fromField, taskFrom[0]))
                 # If there is a user-supplied date set, use it
                 elif self.pm.isSet(t, fromField):
                     # Don't adjust for work week; use the explicit date.
                     taskFrom = self.pm.parseTaskDate(t, fromField)
                     taskFrom = [taskFrom, True]
+                    self._logSch('Using explicit %s: %s' % 
+                                 (fromField, taskFrom[0]))
                 # Otherwise, compute from date from dependencies.
                 else:
                     taskFrom = dependentLimit(t, ancestorLimit(t))
@@ -1751,6 +1758,8 @@ class ResourceScheduler(Component):
                     # The date derived from dependencies is *not* a
                     # fixed (user-specified) date.
                     if taskFrom != None:
+                        self._logSch('Got %s from dependencies: %s' % 
+                                     (fromField, taskFrom[0]))
                         taskFrom[1] = False
                     # If dependencies don't give a date, use date from
                     # project.  Default to today if none given.
@@ -1764,10 +1773,13 @@ class ResourceScheduler(Component):
                                                               second=0,
                                                               microsecond=0,
                                                               tzinfo=localtz)
+                            self._logSch('Defaulting %s: %s' % 
+                                         (fromField, taskFrom))
+                        else:
+                            self._logSch('Using project %s: %s' % 
+                                         (fromField, taskFrom))
 
                         taskFrom = [taskFrom, False]
-                        self._logSch('Defaulted %s for %s to %s' %
-                                     (fromField, t['id'], taskFrom))
 
                 # Check resource availability.
                 #
@@ -1781,8 +1793,10 @@ class ResourceScheduler(Component):
                         t['type'] != self.pm.goalTicketType and \
                         not self.pm.children(t) and \
                         t['status'] != 'closed':
+                    self._logSch('Checking limit for %s' % t['owner'])
                     limit = self.limits.get(t['owner'])
                     if limit and compareLimits(limit, taskFrom[0]) == -1:
+                        self._logSch('Using %s limit' % t['owner'])
                         taskFrom = [limit, True]
                         # FIXME - This doesn't handle explicit from
                         # dates.  End up with negative durations.
@@ -1794,19 +1808,32 @@ class ResourceScheduler(Component):
 
                 # Set the field
                 t['_calc_' + fromField] = taskFrom
+                self._logSch('%s scheduled %s is %s' % 
+                             (t['id'], fromField, taskFrom))
 
+
+            # While the first few clauses below duplicate the first
+            # few clauses for the fromField, the later ones differ in a
+            # subtle way that makes it hard to extract this as a
+            # function.  Specifically, when the toField is set in the
+            # task.
             if t.get('_calc_' + toField) == None:
                 # Use actual dates, if requested.
                 if t.get('_actual_' + toField) and options.get('useActuals'):
                     taskTo = [ to_datetime(t['_actual_' + toField]), True ]
+                    self._logSch('Using actual %s: %s' % 
+                                 (toField, taskTo[0]))
                 # If there is a precomputed date in the database,
                 # use it unless we're forcing a schedule calculation.
                 elif t.get('_sched_' + toField) and not options.get('force'):
                     taskTo = [ to_datetime(t['_sched_' + toField]), True ]
+                    self._logSch('Using db %s: %s' % (toField, taskTo[0]))
                 # If there is a user-supplied date set, use it
                 elif self.pm.isSet(t, toField):
                     taskTo = self.pm.parseTaskDate(t, toField)
                     taskTo = [taskTo, True]
+                    self._logSch('Using explicit %s: %s' % 
+                                 (toField, taskTo[0]))
                 # Otherwise, the to date is based on the from date and
                 # the work to be done.
                 else:
@@ -1816,6 +1843,8 @@ class ResourceScheduler(Component):
                                         dir * hours,
                                         t['_calc_' + fromField][0])
                     taskTo = [taskTo, t['_calc_' + fromField][1]]
+                    self._logSch('Computed %s from %s, work: %s' % 
+                                 (toField, fromField, taskTo[0]))
 
                 t['_calc_' + toField] = taskTo
 
@@ -1836,8 +1865,11 @@ class ResourceScheduler(Component):
                     not self.pm.children(t) and \
                     t['status'] != 'closed':
                 limit = self.limits.get(t['owner'])
+                self._logSch("%s's limit was %s" % (t['owner'], limit))
                 if not limit or \
                         compareLimits(limit, t['_calc_' + toField][0]) == 1:
+                    self._logSch("Updating %s's limit to %s" %
+                                 (t['owner'], t['_calc_' + toField][0]))
                     self.limits[t['owner']] = t['_calc_' + toField][0]
 
             self.taskStack.pop()
@@ -2083,7 +2115,7 @@ class ResourceScheduler(Component):
             eligible = [ticketsByID[tid] for tid in unscheduled \
                             if ticketsByID[tid][eligibleField] == 0]
 
-            details = False
+            details = True
             while unscheduled and eligible:
                 # FIXME - Maybe sort after adding some. I may not need
                 # to sort every loop.)
