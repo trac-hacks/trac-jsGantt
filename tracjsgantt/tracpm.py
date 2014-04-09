@@ -2459,6 +2459,43 @@ class TicketRescheduler(Component):
 
         return list(explored)
 
+    # Clean up links to removed tickets
+    def _repairGraph(self, tickets, ticketsByID):
+        # Fairly often tickets is empty after pruning but setting up
+        # the link field names is cheap and traversing an empty list
+        # is basically free.
+
+        #
+        # FIXME - this is a really gross and fragile way to do it but
+        # it'll due for now.
+        linkFieldNames = {}
+        for linkField in [ 'parent', 'pred', 'succ']:
+            if not self.pm.isCfg(linkField):
+                linkFieldNames[linkField] = None
+            elif self.pm.isField(linkField):
+                linkFieldNames[linkField] = \
+                    self.pm.fields[self.pm.sources[linkField]]
+            else:
+                linkFieldNames[linkField] = linkField
+
+        for t in tickets:
+            # Remove link to parent
+            pid = self.pm.parent(t)
+            if pid and pid not in ticketsByID:
+                t[linkFieldNames['parent']] = None
+
+            # Remove links to children
+            # (Include only children still in the set)
+            t['children'] = [cid for cid in t['children'] 
+                             if cid in ticketsByID]
+                
+            # Predecessors and successors
+            for linkField in ['pred', 'succ']:
+                  t[linkFieldNames[linkField]] = \
+                        [tid for tid in t[linkFieldNames[linkField]] 
+                         if tid in ticketsByID]
+
+
     # Remove tickets that are not required for any goal with one of
     # the configured active statuses.
     #
@@ -2511,42 +2548,7 @@ class TicketRescheduler(Component):
         for t in tickets:
             ticketsByID[t['id']] = t
 
-
-        # Fairly often tickets is empty after pruning but setting up
-        # the link field names is cheap and traversing an empty list
-        # is basically free.
-
-        # Clean up links to removed tickets
-        #
-        # FIXME - this is a really gross and fragile way to do it but
-        # it'll due for now.
-        linkFieldNames = {}
-        for linkField in ['parent', 'pred', 'succ']:
-            if not self.pm.isCfg(linkField):
-                linkFieldNames[linkField] = None
-            elif self.pm.isField(linkField):
-                linkFieldNames[linkField] = \
-                    self.pm.fields[self.pm.sources[linkField]]
-            else:
-                linkFieldNames[linkField] = linkField
-
-        for t in tickets:
-            # Remove link to parent
-            pid = self.pm.parent(t)
-            if pid and pid not in ticketsByID:
-                t[linkFieldNames['parent']] = None
-
-            # Remove links to children
-            # (Include only children still in the set)
-            t['children'] = [cid for cid in t['children']
-                             if cid in ticketsByID]
-
-            # Predecessors and successors
-            for linkField in ['pred', 'succ']:
-                if linkFieldNames[linkField]:
-                    t[linkFieldNames[linkField]] = \
-                        [tid for tid in t[linkFieldNames[linkField]]
-                         if tid in ticketsByID]
+        self._repairGraph(tickets, ticketsByID)
 
         return tickets
 
