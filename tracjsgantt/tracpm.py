@@ -2720,17 +2720,16 @@ class TicketRescheduler(Component):
             inClause = 'IN (%s)' % ','.join(('%s',) * len(idle))
             cursor.execute('DELETE FROM schedule WHERE ticket ' + \
                                inClause,
-                           list(idle))
+                           [t['id'] for t in idle])
 
             # And note idling in schedule history
             valuesClause = ','.join(('(%s,%s,%s,%s)',) * len(idle))
             values = []
-            for t in tickets:
-                if t['id'] in idle:
-                    values.append(t['id'])
-                    values.append(to_utimestamp(dbTime))
-                    values.append(to_utimestamp(self.pm.start(t)))
-                    values.append(to_utimestamp(self.pm.finish(t)))
+            for t in idle:
+                values.append(t['id'])
+                values.append(to_utimestamp(dbTime))
+                values.append(to_utimestamp(self.pm.start(t)))
+                values.append(to_utimestamp(self.pm.finish(t)))
 
             # New start and finish are null
             cursor.execute('INSERT INTO schedule_change' + \
@@ -2851,81 +2850,91 @@ class TicketRescheduler(Component):
     # No return.  The calculated start and finish dates in the ticket
     # database may be updated.
     def rescheduleTickets(self, ticket, old_values):
+        # If active statuses configured
+        if not self.pm.activeGoalStatuses:
+            self.env.log.info('Background ticket rescheduler requires' +
+                              ' goal ticket type and active goal statuses' +
+                              ' to be configured.')
+            return
+
         # Each step (e.g., finding, querying, pruning) has an entry
         # Each entry is [ step, ticketcount, time ]
         profile = []
 
-        # If this ticket is a goal and it is going inactive, the
-        # tickets required for it will be idle unless they are
-        # required for another still-active goal.
-        potentiallyIdle = set()
-        if self.pm.activeGoalStatuses \
-                and ticket['type'] == self.pm.goalTicketType \
-                and 'status' in old_values:
-            wasActive = old_values['status'] in self.pm.activeGoalStatuses
-            isActive = ticket['status'] in self.pm.activeGoalStatuses
-            if wasActive and not isActive:
-                start = datetime.now()
-                potentiallyIdle |= self.pm.preQuery({'goal': str(ticket.id)})
-                # All the rest of the ticket sets in this function are
-                # the result of direct queries and have integer ticket
-                # IDs.  preQuery() returns a set of strings so we
-                # convert here to make later processing clearer.
-                potentiallyIdle = set([int(t) for t in potentiallyIdle])
-                # pretty_timedelta is ugly. :-/  Doesn't show fractional seconds
-                end = datetime.now()
-                profile.append([ 'remembering',
-                                 len(potentiallyIdle),
-                                 end - start ])
+        db = self.env.get_db_cnx()
+        cursor = db.cursor()
 
-        # This ticket may go idle if it moves to another goal.
-        potentiallyIdle.add(ticket.id)
-
-        # What tickets are affected by this ticket changing?
+        # Get IDs of active goals
         start = datetime.now()
-        # Here ids is a list of strings.  Necessary for queryTickets()
-        ids = self._findAffected(ticket, old_values)
+        inClause = 'IN (%s)' % \
+            ','.join(('%s',) * len(self.pm.activeGoalStatuses))
+        cursor.execute('SELECT id FROM ticket' + \
+                           ' WHERE type = %s' + \
+                           ' AND status ' + inClause,
+                       [self.pm.goalTicketType] +
+                        self.pm.activeGoalStatuses)
+        activeGoals = ['%s' % row[0] for row in cursor]
         end = datetime.now()
-        profile.append(['finding', len(ids), end - start ])
+        profile.append([ 'getting active goals',
+                         len(activeGoals),
+                         end - start ])
 
-        # Get Details for the affected tickets.
+        # Get IDs of tickets required for those goals
+        start = datetime.now()
+        nowActive = self.pm.preQuery({'goal': '|'.join(activeGoals)})
+        end = datetime.now()
+        profile.append([ 'getting active tickets',
+                         len(nowActive),
+                         end - start ])
+
+        # Get IDs of tickets that were active before this change
+        start = datetime.now()
+        cursor.execute('SELECT ticket FROM schedule')
+        wasActive = set(['%s' % row[0] for row in cursor])
+        end = datetime.now()
+        profile.append([ 'getting scheduled tickets', 
+                         len(nowActive), 
+                         end - start ])
+
+        # There are four possibilities for the state of the changed
+        # ticket relative to the sets of formerly or currently active
+        # tickets:
         #
-        # Note that the schedule information *is* stale.  Trac updated
-        # 'ticket' and 'ticket_custom' but the code which follows
-        # updates 'schedule' so it is still in the old state.
+        #  1. It wasn't and isn't active.
+        #    The schedule doesn't change.
+        #  2. It wasn't active (including didn't exist) and is now.
+        #    Active tickets need to be rescheduled to fit it in.
+        #  3. It was active and isn't now.
+        #    Active tickets needs to be rescheduled to fill in the gap.
+        #  4. It was and continues to be active.
+        #    The schedule needs to be adjusted for the change in
+        #    schedling attributes (dependency, estimated duration,
+        #    etc.)
         #
-        # Also, dependency information in 'mastertickets' *may* (or
-        # may not) be stale depending on what order that plugin's
-        # ticket change listener and this one are invoked in (which is
-        # indeterminate and uncontrollable).
+        #  So, if it was or is active, we have to reschedule.  That
+        #  requires getting the ticket details (dependencies,
+        #  estimates, etc.) for the scheduler.
         start = datetime.now()
-        tickets = self.queryTickets(ids)
-        end = datetime.now()
-        profile.append(['querying', len(tickets), end - start ])
+        tid = str(ticket.id)
+        if tid in nowActive or tid in wasActive:
+            start = datetime.now()
+            idleIDs = wasActive - nowActive
+            if len(idleIDs) != 0:
+                idle = self.queryTickets(idleIDs)
+            else:
+                idle = []
 
-        # Splice in-memory graph based on changes
-        start = datetime.now()
-        self.spliceGraph(tickets, ticket, old_values)
-        end = datetime.now()
-        profile.append([ 'splicing', len(tickets), end - start ])
+            tickets = self.queryTickets(nowActive)
+            end = datetime.now()
+            profile.append([ 'getting ticket details', 
+                             len(idleIDs) + len(nowActive), 
+                             end - start ])
+        else:
+            idle = []
+            tickets = []
 
-        # Prune tickets to only those in active projects.
-        start = datetime.now()
-        activeIDs = [t['id'] for t in self._pruneInactive(tickets)]
-        end = datetime.now()
-        profile.append([ 'pruning', len(activeIDs), end - start ])
-
-        # The newly-idle tickets are the ones that might have been
-        # idled by the goal status transition and are not still
-        # active.
-        idle = potentiallyIdle - set(activeIDs)
-
-        # Reschedule only if there are tickets left after pruning and
-        # that list includes the changed ticket.
-        if len(activeIDs) > 0 and ticket.id in activeIDs:
-            # Limit to the active tickets.
-            tickets = [t for t in tickets if t['id'] in activeIDs]
-
+        # Reschedule only if there are active tickets
+        if len(tickets) != 0:
             # Compute schedule with configured options
             self.env.log.info('Recomputing schedule with options:%s' %
                               self.options)
