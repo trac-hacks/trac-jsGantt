@@ -2652,7 +2652,7 @@ class TicketRescheduler(Component):
 
             # Fix up predecessors, successors
             for linkField in ['pred', 'succ']:
-                # We need to figure up the forward and reverse
+                # We need to figure out the forward and reverse
                 # relationships below.
                 fwd = linkField
                 if fwd == 'pred':
@@ -2707,6 +2707,142 @@ class TicketRescheduler(Component):
                             ticketsByID[ticket.id][fwdField].append(tid)
                             ticketsByID[tid][revField].append(ticket.id)
 
+    def _updateScheduleDB(self, idle, tickets, profile):
+        db = self.env.get_db_cnx()
+        cursor = db.cursor()
+
+        # All the history records need the same timestamp.
+        dbTime = datetime.now().replace(tzinfo=localtz)
+
+        if len(idle) != 0:
+            start = datetime.now()
+            # Remove idle tickets from schedule
+            inClause = 'IN (%s)' % ','.join(('%s',) * len(idle))
+            cursor.execute('DELETE FROM schedule WHERE ticket ' + \
+                               inClause,
+                           list(idle))
+
+            # And note idling in schedule history
+            valuesClause = ','.join(('(%s,%s,%s,%s)',) * len(idle))
+            values = []
+            for t in tickets:
+                if t['id'] in idle:
+                    values.append(t['id'])
+                    values.append(to_utimestamp(dbTime))
+                    values.append(to_utimestamp(self.pm.start(t)))
+                    values.append(to_utimestamp(self.pm.finish(t)))
+
+            # New start and finish are null
+            cursor.execute('INSERT INTO schedule_change' + \
+                               ' (ticket, time,' + \
+                               ' oldstart, oldfinish)' + \
+                               ' VALUES %s' % valuesClause,
+                           values)
+            end = datetime.now()
+            profile.append([ 'idling', len(idle), end - start ])
+
+        ids = [t['id'] for t in tickets]
+
+        if len(tickets) != 0:
+            # Some "rescheduled" tickets had their schedule created
+            # for the first time, some had it changed.  We have to be
+            # able to choose between UPDATE (for those that changed)
+            # and INSERT (for the others).
+            #
+            # First, find which are already there.
+            # (Query and save old start, finish values at the same time.)
+            inClause = 'IN (%s)' % ','.join(('%s',) * len(ids))
+            cursor.execute('SELECT ticket, start, finish' + \
+                               ' FROM schedule WHERE ticket ' + \
+                               inClause,
+                           ids)
+            toUpdate = set()
+            historyValues = {}
+            for row in cursor:
+                tid = row[0]
+                oldStart = row[1]
+                oldFinish = row[2]
+
+                historyValues[tid] = [ oldStart, oldFinish ]
+
+                toUpdate.add(tid)
+
+            # Second, update the tickets that are there.
+            # (Build before/after values as we go to update history next.)
+            start = datetime.now()
+            values = []
+            for t in tickets:
+                if t['id'] in toUpdate:
+                    # Index history by ticket ID and time
+                    values.append(t['id'])
+                    values.append(to_utimestamp(dbTime))
+                    # Old start and finish
+                    values.append(historyValues[t['id']][0])
+                    values.append(historyValues[t['id']][1])
+                    # New start and finish
+                    values.append(to_utimestamp(self.pm.start(t)))
+                    values.append(to_utimestamp(self.pm.finish(t)))
+
+                    cursor.execute('UPDATE schedule'
+                                   ' SET start=%s, finish=%s'
+                                   ' WHERE ticket=%s',
+                                   (to_utimestamp(self.pm.start(t)),
+                                    to_utimestamp(self.pm.finish(t)),
+                                    t['id']))
+
+
+            # Third, insert the history for the updated tickets.
+            if len(toUpdate) != 0:
+                valuesClause = ','.join(('(%s,%s,%s,%s,%s,%s)',)
+                                        * len(toUpdate))
+                cursor.execute('INSERT INTO schedule_change' + \
+                                   ' (ticket, time,' + \
+                                   ' oldstart, oldfinish,' + \
+                                   ' newstart, newfinish)' + \
+                                   ' VALUES %s' % valuesClause,
+                               values)
+
+            end = datetime.now()
+            profile.append([ 'updating', len(toUpdate), end - start ])
+
+
+            # Fourth, insert tickets that aren't already in the schedule
+            toInsert = set(ids) - toUpdate
+            start = datetime.now()
+            if len(toInsert) != 0:
+                valuesClause = ','.join(('(%s,%s,%s)',) * len(toInsert))
+                values = []
+                for t in tickets:
+                    if t['id'] in toInsert:
+                        values.append(t['id'])
+                        values.append(to_utimestamp(self.pm.start(t)))
+                        values.append(to_utimestamp(self.pm.finish(t)))
+                cursor.execute('INSERT INTO schedule' + \
+                                   ' (ticket, start, finish)' + \
+                                   ' VALUES %s' % valuesClause,
+                               values)
+
+
+                # Finally, add history records to schedule_change
+                # for newly scheduled tickets.
+                valuesClause = ','.join(('(%s,%s,%s,%s)',) * len(toInsert))
+                values = []
+                for t in tickets:
+                    if t['id'] in toInsert:
+                        values.append(t['id'])
+                        values.append(to_utimestamp(dbTime))
+                        # Old start and finish are null
+                        values.append(to_utimestamp(self.pm.start(t)))
+                        values.append(to_utimestamp(self.pm.finish(t)))
+                cursor.execute('INSERT INTO schedule_change' + \
+                                   ' (ticket, time,' + \
+                                   ' newstart, newfinish)' + \
+                                   ' VALUES %s' % valuesClause,
+                               values)
+
+            end = datetime.now()
+            profile.append([ 'inserting', len(toInsert), end - start ])
+
 
     # Reschedule based on a ticket changing.
     #
@@ -2715,9 +2851,6 @@ class TicketRescheduler(Component):
     # No return.  The calculated start and finish dates in the ticket
     # database may be updated.
     def rescheduleTickets(self, ticket, old_values):
-        # All the history records need the same timestamp.
-        dbTime = datetime.now().replace(tzinfo=localtz)
-
         # Each step (e.g., finding, querying, pruning) has an entry
         # Each entry is [ step, ticketcount, time ]
         profile = []
@@ -2782,40 +2915,10 @@ class TicketRescheduler(Component):
         end = datetime.now()
         profile.append([ 'pruning', len(activeIDs), end - start ])
 
-        db = self.env.get_db_cnx()
-        cursor = db.cursor()
-
         # The newly-idle tickets are the ones that might have been
         # idled by the goal status transition and are not still
         # active.
         idle = potentiallyIdle - set(activeIDs)
-        if len(idle) != 0:
-            start = datetime.now()
-            # Remove idle tickets from schedule
-            inClause = "IN (%s)" % ','.join(('%s',) * len(idle))
-            cursor.execute("DELETE FROM schedule WHERE ticket " + \
-                               inClause,
-                           list(idle))
-
-            # And note idling in schedule history
-            valuesClause = ','.join(('(%s,%s,%s,%s)',) * len(idle))
-            values = []
-            for t in tickets:
-                if t['id'] in idle:
-                    values.append(t['id'])
-                    values.append(to_utimestamp(dbTime))
-                    values.append(to_utimestamp(self.pm.start(t)))
-                    values.append(to_utimestamp(self.pm.finish(t)))
-
-            # New start and finish are null
-            cursor.execute('INSERT INTO schedule_change' + \
-                               ' (ticket, time,' + \
-                               ' oldstart, oldfinish)' + \
-                               ' VALUES %s' % valuesClause,
-                           values)
-            end = datetime.now()
-            profile.append([ 'idling', len(idle), end - start ])
-
 
         # Reschedule only if there are tickets left after pruning and
         # that list includes the changed ticket.
@@ -2841,109 +2944,8 @@ class TicketRescheduler(Component):
             # schedule tables would be meaningless.
             tickets = [t for t in tickets if not self.pm.isTracMilestone(t)]
 
-            # Update the database for any rescheduled tickets
-            if len(tickets) != 0:
-                ids = [t['id'] for t in tickets]
-
-                # Some "rescheduled" tickets had their schedule created
-                # for the first time, some had it changed.  We have to be
-                # able to choose between UPDATE (for those that changed)
-                # and INSERT (for the others).
-                #
-                # First, find which are already there.
-                # (Query and save old start, finish values at the same time.)
-                inClause = "IN (%s)" % ','.join(('%s',) * len(ids))
-                cursor.execute("SELECT ticket, start, finish" + \
-                                   " FROM schedule WHERE ticket " + \
-                                   inClause,
-                               ids)
-                toUpdate = set()
-                historyValues = {}
-                for row in cursor:
-                    tid = row[0]
-                    oldStart = row[1]
-                    oldFinish = row[2]
-
-                    historyValues[tid] = [ oldStart, oldFinish ]
-
-                    toUpdate.add(tid)
-
-
-                # Second, update the tickets that are there.
-                # (Build before/after values as we go to update history next.)
-                start = datetime.now()
-                values = []
-                for t in tickets:
-                    if t['id'] in toUpdate:
-                        # Index history by ticket ID and time
-                        values.append(t['id'])
-                        values.append(to_utimestamp(dbTime))
-                        # Old start and finish
-                        values.append(historyValues[t['id']][0])
-                        values.append(historyValues[t['id']][1])
-                        # New start and finish
-                        values.append(to_utimestamp(self.pm.start(t)))
-                        values.append(to_utimestamp(self.pm.finish(t)))
-
-                        cursor.execute('UPDATE schedule'
-                                       ' SET start=%s, finish=%s'
-                                       ' WHERE ticket=%s',
-                                       (to_utimestamp(self.pm.start(t)),
-                                        to_utimestamp(self.pm.finish(t)),
-                                        t['id']))
-
-
-                # Third, insert the history for the updated tickets.
-                if len(toUpdate) != 0:
-                    valuesClause = ','.join(('(%s,%s,%s,%s,%s,%s)',)
-                                            * len(toUpdate))
-                    cursor.execute('INSERT INTO schedule_change' + \
-                                       ' (ticket, time,' + \
-                                       ' oldstart, oldfinish,' + \
-                                       ' newstart, newfinish)' + \
-                                       ' VALUES %s' % valuesClause,
-                                   values)
-
-                end = datetime.now()
-                profile.append([ 'updating', len(toUpdate), end - start ])
-
-
-                # Fourth, insert tickets that aren't already in the schedule
-                toInsert = set(ids) - toUpdate
-                start = datetime.now()
-                if len(toInsert) != 0:
-                    valuesClause = ','.join(('(%s,%s,%s)',) * len(toInsert))
-                    values = []
-                    for t in tickets:
-                        if t['id'] in toInsert:
-                            values.append(t['id'])
-                            values.append(to_utimestamp(self.pm.start(t)))
-                            values.append(to_utimestamp(self.pm.finish(t)))
-                    cursor.execute('INSERT INTO schedule' + \
-                                       ' (ticket, start, finish)' + \
-                                       ' VALUES %s' % valuesClause,
-                                   values)
-
-
-                    # Finally, add history records to schedule_change
-                    # for newly scheduled tickets.
-                    valuesClause = ','.join(('(%s,%s,%s,%s)',) * len(toInsert))
-                    values = []
-                    for t in tickets:
-                        if t['id'] in toInsert:
-                            values.append(t['id'])
-                            values.append(to_utimestamp(dbTime))
-                            # Old start and finish are null
-                            values.append(to_utimestamp(self.pm.start(t)))
-                            values.append(to_utimestamp(self.pm.finish(t)))
-                    cursor.execute('INSERT INTO schedule_change' + \
-                                       ' (ticket, time,' + \
-                                       ' newstart, newfinish)' + \
-                                       ' VALUES %s' % valuesClause,
-                                   values)
-
-                end = datetime.now()
-                profile.append([ 'inserting', len(toInsert), end - start ])
+        # Update the database for any rescheduled or idled tickets
+        self._updateScheduleDB(idle, tickets, profile)
 
         for step in profile:
             self.env.log.info('%s %s tickets took %s' %
