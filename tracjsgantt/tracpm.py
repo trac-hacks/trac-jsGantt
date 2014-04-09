@@ -1664,27 +1664,22 @@ class ResourceScheduler(Component):
             return delta
 
         # Return True if d1 is better than d2
-        # Each is a tuple in the form [date, explicit] or None
+        # Each is a tuple in the form [date, source] or None where
+        # source is a numeric precedence (the lower the better).
         def _betterDate(d1, d2):
             # If both are None, neither is better
             if d1 == None and d2 == None:
                 better = False
-            # If d1 is None, d2 is better if it is explicit
-            # That is, don't replace "not yet set" with an implicit date
+            # If d1 is None, d2 is better
             elif d1 == None:
-                better = d2[1]
+                better = True
             # If d2 is None, d1 has to be better
             elif d2 == None:
                 better = True
-            # If d1 is explicit
-            elif d1[1]:
-                # If d2 is implicit, d1 is better
-                if not d2[1]:
-                    better = True
-                # If d2 is also explicit, d1 isn't better
-                else:
-                    better = False
-            # d1 is implicit, it can't be better than d2
+            # Otherwise, the lower number wins
+            elif d1[1] < d2[1]:
+                better = True
+            # >= is not better.
             else:
                 better = False
 
@@ -1730,26 +1725,37 @@ class ResourceScheduler(Component):
             d2 = d1 + timedelta(hours=1)
             dir = compareLimits(d1, d2)
 
+            # Start/finish date origin predecence constant values
+            SF_LIMIT = 0
+            SF_ACTUAL = 1
+            SF_SCHEDULE = 2
+            SF_TASK = 3
+            SF_DEPENDENCIES = 4
+            SF_PROJECT = 5
+            SF_DEFAULT = 6
+
             # If we haven't scheduled this yet, do it now.
             if t.get('_calc_' + fromField) == None:
                 self._logSch('Scheduling %s' % t['id'])
 
                 # Use actual dates, if requested.
                 if t.get('_actual_' + fromField) and options.get('useActuals'):
-                    taskFrom = [ to_datetime(t['_actual_' + fromField]), True ]
-                    self._logSch('Using actual %s:%s' % 
+                    taskFrom = [ to_datetime(t['_actual_' + fromField]),
+                                 SF_ACTUAL ]
+                    self._logSch('Using actual %s:%s' %
                                  (fromField, taskFrom[0]))
                 # If there is a precomputed date in the database,
                 # use it unless we're forcing a schedule calculation.
                 elif t.get('_sched_' + fromField) and not options.get('force'):
-                    taskFrom = [ to_datetime(t['_sched_' + fromField]), True ]
+                    taskFrom = [ to_datetime(t['_sched_' + fromField]),
+                                 SF_SCHEDULE ]
                     self._logSch('Using db %s: %s' % (fromField, taskFrom[0]))
                 # If there is a user-supplied date set, use it
                 elif self.pm.isSet(t, fromField):
                     # Don't adjust for work week; use the explicit date.
                     taskFrom = self.pm.parseTaskDate(t, fromField)
-                    taskFrom = [taskFrom, True]
-                    self._logSch('Using explicit %s: %s' % 
+                    taskFrom = [taskFrom, SF_TASK]
+                    self._logSch('Using explicit %s: %s' %
                                  (fromField, taskFrom[0]))
                 # Otherwise, compute from date from dependencies.
                 else:
@@ -1758,9 +1764,9 @@ class ResourceScheduler(Component):
                     # The date derived from dependencies is *not* a
                     # fixed (user-specified) date.
                     if taskFrom != None:
-                        self._logSch('Got %s from dependencies: %s' % 
+                        self._logSch('Got %s from dependencies: %s' %
                                      (fromField, taskFrom[0]))
-                        taskFrom[1] = False
+                        taskFrom[1] = SF_DEPENDENCIES
                     # If dependencies don't give a date, use date from
                     # project.  Default to today if none given.
                     else:
@@ -1773,13 +1779,14 @@ class ResourceScheduler(Component):
                                                               second=0,
                                                               microsecond=0,
                                                               tzinfo=localtz)
-                            self._logSch('Defaulting %s: %s' % 
+                            self._logSch('Defaulting %s: %s' %
                                          (fromField, taskFrom))
+                            taskFrom = [taskFrom, SF_DEFAULT]
                         else:
-                            self._logSch('Using project %s: %s' % 
+                            self._logSch('Using project %s: %s' %
                                          (fromField, taskFrom))
+                            taskFrom = [taskFrom, SF_PROJECT]
 
-                        taskFrom = [taskFrom, False]
 
                 # Check resource availability.
                 #
@@ -1796,10 +1803,9 @@ class ResourceScheduler(Component):
                     self._logSch('Checking limit for %s' % t['owner'])
                     limit = self.limits.get(t['owner'])
                     if limit and compareLimits(limit, taskFrom[0]) == -1:
-                        self._logSch('Using %s limit' % t['owner'])
-                        taskFrom = [limit, True]
-                        # FIXME - This doesn't handle explicit from
-                        # dates.  End up with negative durations.
+                        self._logSch('from was %s, setting from %s limit %s' %
+                                     (taskFrom, t['owner'], limit))
+                        taskFrom = [limit, SF_LIMIT]
 
                 # Adjust for end of day. (That is, a finish at the
                 # beginning of a day is really at the end of the
@@ -1808,7 +1814,7 @@ class ResourceScheduler(Component):
 
                 # Set the field
                 t['_calc_' + fromField] = taskFrom
-                self._logSch('%s scheduled %s is %s' % 
+                self._logSch('%s scheduled %s is %s' %
                              (t['id'], fromField, taskFrom))
 
 
@@ -1820,19 +1826,20 @@ class ResourceScheduler(Component):
             if t.get('_calc_' + toField) == None:
                 # Use actual dates, if requested.
                 if t.get('_actual_' + toField) and options.get('useActuals'):
-                    taskTo = [ to_datetime(t['_actual_' + toField]), True ]
-                    self._logSch('Using actual %s: %s' % 
+                    taskTo = [ to_datetime(t['_actual_' + toField]), SF_ACTUAL ]
+                    self._logSch('Using actual %s: %s' %
                                  (toField, taskTo[0]))
                 # If there is a precomputed date in the database,
                 # use it unless we're forcing a schedule calculation.
                 elif t.get('_sched_' + toField) and not options.get('force'):
-                    taskTo = [ to_datetime(t['_sched_' + toField]), True ]
+                    taskTo = [ to_datetime(t['_sched_' + toField]),
+                               SF_SCHEDULE ]
                     self._logSch('Using db %s: %s' % (toField, taskTo[0]))
                 # If there is a user-supplied date set, use it
                 elif self.pm.isSet(t, toField):
                     taskTo = self.pm.parseTaskDate(t, toField)
-                    taskTo = [taskTo, True]
-                    self._logSch('Using explicit %s: %s' % 
+                    taskTo = [taskTo, SF_TASK]
+                    self._logSch('Using explicit %s: %s' %
                                  (toField, taskTo[0]))
                 # Otherwise, the to date is based on the from date and
                 # the work to be done.
@@ -1843,19 +1850,32 @@ class ResourceScheduler(Component):
                                         dir * hours,
                                         t['_calc_' + fromField][0])
                     taskTo = [taskTo, t['_calc_' + fromField][1]]
-                    self._logSch('Computed %s from %s, work: %s' % 
+                    self._logSch('Computed %s from %s, work: %s' %
                                  (toField, fromField, taskTo[0]))
 
                 t['_calc_' + toField] = taskTo
 
-                # Adjust implicit from date for explicit to date
-                if _betterDate(taskTo, taskFrom):
-                    hours = self.pm.workHours(t)
-                    taskFrom[0] = taskTo[0] + _calendarOffset(t,
-                                                           (-1/dir) * hours,
-                                                           taskTo[0])
-                    t['_calc_' + fromField] = taskFrom
-
+            # Adjust dates based on precedence
+            if _betterDate(t['_calc_' + toField], t['_calc_' + fromField]):
+                self._logSch('Explicit %s, calculated %s; updating %s' %
+                             (toField, fromField, fromField))
+                self._logSch('%s was %s' % (fromField, t['_calc_' + fromField]))
+                hours = self.pm.workHours(t)
+                t['_calc_' + fromField][0] = t['_calc_' + toField][0] + \
+                    _calendarOffset(t,
+                                    (-1/dir) * hours,
+                                    t['_calc_' + toField][0])
+                self._logSch('%s now %s' % (fromField, t['_calc_' + fromField]))
+            elif _betterDate(t['_calc_' + fromField], t['_calc_' + toField]):
+                self._logSch('Explicit %s, calculated %s; updating %s' %
+                             (fromField, toField, toField))
+                self._logSch('%s was %s' % (toField, t['_calc_' + toField]))
+                hours = self.pm.workHours(t)
+                t['_calc_' + toField][0] = t['_calc_' + fromField][0] + \
+                    _calendarOffset(t,
+                                    dir * hours,
+                                    t['_calc_' + fromField][0])
+                self._logSch('%s now %s' % (toField, t['_calc_' + toField]))
 
             # Remember the limit for open tickets
             #
