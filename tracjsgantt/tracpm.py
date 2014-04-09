@@ -2460,7 +2460,10 @@ class TicketRescheduler(Component):
         return list(explored)
 
     # Clean up links to removed tickets
-    def _repairGraph(self, tickets, ticketsByID):
+    def _repairGraph(self, tickets):
+
+        ids = [t['id'] for t in tickets]
+
         # Fairly often tickets is empty after pruning but setting up
         # the link field names is cheap and traversing an empty list
         # is basically free.
@@ -2481,19 +2484,19 @@ class TicketRescheduler(Component):
         for t in tickets:
             # Remove link to parent
             pid = self.pm.parent(t)
-            if pid and pid not in ticketsByID:
+            if pid and pid not in ids:
                 t[linkFieldNames['parent']] = None
 
             # Remove links to children
             # (Include only children still in the set)
-            t['children'] = [cid for cid in t['children'] 
-                             if cid in ticketsByID]
-                
+            t['children'] = [cid for cid in t['children']
+                             if cid in ids]
+
             # Predecessors and successors
             for linkField in ['pred', 'succ']:
                   t[linkFieldNames[linkField]] = \
-                        [tid for tid in t[linkFieldNames[linkField]] 
-                         if tid in ticketsByID]
+                        [tid for tid in t[linkFieldNames[linkField]]
+                         if tid in ids]
 
 
     # Remove tickets that are not required for any goal with one of
@@ -2506,11 +2509,11 @@ class TicketRescheduler(Component):
     #
     # @param tickets a list of tickets
     #
-    # @return the list with inactive tickets removed
+    # @return list of items removed from tickets
     def _pruneInactive(self, tickets):
         # If no configured active statuses, don't prune.
         if not self.pm.activeGoalStatuses:
-            return tickets
+            return []
 
         # Make a lookup for faster processing
         ticketsByID = {}
@@ -2541,16 +2544,19 @@ class TicketRescheduler(Component):
                     and t['status'] in self.pm.activeGoalStatuses:
                 markActive(t)
 
-        # Remove inactive tickets
-        tickets = [t for t in tickets if t['_active']]
-        # Refresh the lookup table
-        ticketsByID = {}
-        for t in tickets:
-            ticketsByID[t['id']] = t
+        # Separate active and inactive tickets
+        activeTickets = [t for t in tickets if t['_active']]
+        inactiveTickets = [t for t in tickets if not t['_active']]
 
-        self._repairGraph(tickets, ticketsByID)
+        # Fix dangling links
+        self._repairGraph(activeTickets)
 
-        return tickets
+        # Empty the list and add active tickets back to it
+        del tickets[:]
+        tickets.extend(activeTickets)
+
+        # Return the ones we removed
+        return inactiveTickets
 
 
     # Query ticket table (and linked custom fields) for fields needed
