@@ -2498,6 +2498,22 @@ class TicketRescheduler(Component):
                         [tid for tid in t[linkFieldNames[linkField]]
                          if tid in ids]
 
+    # Remove closed tickets.
+    #
+    # @param tickets a list of tickets
+    #
+    # @return list of items removed from tickes
+    def _pruneClosed(self, tickets):
+
+        closedTickets = [t for t in tickets if t['status'] == 'closed']
+        openTickets = [t for t in tickets if t['status'] != 'closed']
+
+        self._repairGraph(openTickets)
+
+        del tickets[:]
+        tickets.extend(openTickets)
+
+        return closedTickets
 
     # Remove tickets that are not required for any goal with one of
     # the configured active statuses.
@@ -2715,6 +2731,16 @@ class TicketRescheduler(Component):
                             ticketsByID[ticket.id][fwdField].append(tid)
                             ticketsByID[tid][revField].append(ticket.id)
 
+
+    # Update schedule and schedule_change tables in the database
+    #
+    # * Remove idle tickets from the schedule and put them in
+    #   schedule_change with NULL new start and finish (if open) or
+    #   final start, finish (if closed).
+    # * Insert tickets which are not in schedule into it and put them
+    #   in schedule_change with a NULL old start and finish
+    # * Update tickets which are in schedule and put their old and new
+    #   start aand finish in schedule_change.
     def _updateScheduleDB(self, idle, tickets, profile):
         db = self.env.get_db_cnx()
         cursor = db.cursor()
@@ -2731,18 +2757,25 @@ class TicketRescheduler(Component):
                            [t['id'] for t in idle])
 
             # And note idling in schedule history
-            valuesClause = ','.join(('(%s,%s,%s,%s)',) * len(idle))
+            valuesClause = ','.join(('(%s,%s,%s,%s,%s,%s)',) * len(idle))
             values = []
             for t in idle:
                 values.append(t['id'])
                 values.append(to_utimestamp(dbTime))
                 values.append(to_utimestamp(self.pm.start(t)))
                 values.append(to_utimestamp(self.pm.finish(t)))
+                if t['status'] == 'closed':
+                    values.append(to_utimestamp(self.pm.start(t)))
+                    values.append(to_utimestamp(self.pm.finish(t)))
+                else:
+                    values.append(None)
+                    values.append(None)
 
-            # New start and finish are null
+            # Update schedule history
             cursor.execute('INSERT INTO schedule_change' + \
                                ' (ticket, time,' + \
-                               ' oldstart, oldfinish)' + \
+                               ' oldstart, oldfinish,'
+                               ' newstart, newfinish)' + \
                                ' VALUES %s' % valuesClause,
                            values)
             end = datetime.now()
@@ -2888,6 +2921,9 @@ class TicketRescheduler(Component):
                          end - start ])
 
         # Get IDs of tickets required for those goals
+        #
+        # NOTE: This includes closed tickets which are predecessors of
+        # work still to be done.
         start = datetime.now()
         nowActive = self.pm.preQuery({'goal': '|'.join(activeGoals)})
         end = datetime.now()
@@ -2896,12 +2932,15 @@ class TicketRescheduler(Component):
                          end - start ])
 
         # Get IDs of tickets that were active before this change
+        #
+        # NOTE: In the steady state, there should be no closed tickets
+        # in the schedule.  Why schedule work that is already complete?
         start = datetime.now()
         cursor.execute('SELECT ticket FROM schedule')
         wasActive = set(['%s' % row[0] for row in cursor])
         end = datetime.now()
-        profile.append([ 'getting scheduled tickets', 
-                         len(nowActive), 
+        profile.append([ 'getting scheduled tickets',
+                         len(wasActive),
                          end - start ])
 
         # There are four possibilities for the state of the changed
@@ -2924,18 +2963,40 @@ class TicketRescheduler(Component):
         #  estimates, etc.) for the scheduler.
         start = datetime.now()
         tid = str(ticket.id)
+        if tid in wasActive:
+            self.env.log.debug('%s was active' % tid)
+        else:
+            self.env.log.debug('%s was not active' % tid)
+        if tid in nowActive:
+            self.env.log.debug('%s is active' % tid)
+        else:
+            self.env.log.debug('%s is not active' % tid)
         if tid in nowActive or tid in wasActive:
             start = datetime.now()
-            idleIDs = wasActive - nowActive
-            if len(idleIDs) != 0:
-                idle = self.queryTickets(idleIDs)
-            else:
-                idle = []
 
-            tickets = self.queryTickets(nowActive)
+            # Get ticket details of all tickets to process
+            details = self.queryTickets(wasActive | nowActive)
+
+            # Get the active tickets
+            tickets = [t for t in details if str(t['id']) in nowActive]
+            self.env.log.debug('There are %d active tickets' % len(tickets))
+
+            # Prune to those that aren't closed
+            self._pruneClosed(tickets)
+            self.env.log.debug('There are %d active, open tickets' %
+                               len(tickets))
+
+            # Update nowActive based on pruning
+            nowActive = set([str(t['id']) for t in tickets])
+
+            # Find idle tickets
+            idleIDs = wasActive - nowActive
+            self.env.log.debug('%d tickets were idled' % len(idleIDs))
+            idle = [t for t in details if str(t['id']) in idleIDs]
+
             end = datetime.now()
-            profile.append([ 'getting ticket details', 
-                             len(idleIDs) + len(nowActive), 
+            profile.append([ 'getting ticket details',
+                             len(details),
                              end - start ])
         else:
             idle = []
@@ -2974,6 +3035,7 @@ class TicketRescheduler(Component):
     # been saved to the database.
 
     def ticket_created(self, ticket):
+        self.env.log.info('Ticket %s created.' % ticket.id)
         self.rescheduleTickets(ticket, {})
 
 
@@ -2985,4 +3047,5 @@ class TicketRescheduler(Component):
 
 
     def ticket_deleted(self, ticket):
+        self.env.log.info('Ticket %s deleted.' % ticket.id)
         self.rescheduleTickets(ticket, {})
