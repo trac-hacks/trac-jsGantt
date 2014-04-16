@@ -2232,10 +2232,6 @@ JSGantt.changeFormat =      function(pFormat,ganttObj) {
 * @return {void}
 */
 
-/* FIXME - this is an incomplete fix.  It seems to work on the first
- * gantt on a page but when you close a group on the second Gantt, the
- * first chart changes.
- */
 JSGantt.folder= function (pID,ganttObj) {
 
    var vList = ganttObj.getList();
