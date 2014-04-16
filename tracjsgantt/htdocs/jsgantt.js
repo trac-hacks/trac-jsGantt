@@ -1320,9 +1320,9 @@ Complete-Displays task percent complete</p>
                vID = vTaskList[i].getID();
 
   		         if(vTaskList[i].getVisible() == 0) 
-                  vLeftTable += '<TR id=child_' + vID + ' bgcolor=#' + vBGColor + ' style="display:none"  onMouseover='+pGanttVar+'.mouseOver(this,' + vID + ',"left","' + vRowType + '") onMouseout='+pGanttVar+'.mouseOut(this,' + vID + ',"left","' + vRowType + '")>' ;
+                  vLeftTable += '<TR id='+pGanttVar+'_child_' + vID + ' bgcolor=#' + vBGColor + ' style="display:none"  onMouseover='+pGanttVar+'.mouseOver(this,' + vID + ',"left","' + vRowType + '") onMouseout='+pGanttVar+'.mouseOut(this,' + vID + ',"left","' + vRowType + '")>' ;
 			      else
-                 vLeftTable += '<TR id=child_' + vID + ' bgcolor=#' + vBGColor + ' onMouseover='+pGanttVar+'.mouseOver(this,' + vID + ',"left","' + vRowType + '") onMouseout='+pGanttVar+'.mouseOut(this,' + vID + ',"left","' + vRowType + '")>' ;
+                 vLeftTable += '<TR id='+pGanttVar+'_child_' + vID + ' bgcolor=#' + vBGColor + ' onMouseover='+pGanttVar+'.mouseOver(this,' + vID + ',"left","' + vRowType + '") onMouseout='+pGanttVar+'.mouseOut(this,' + vID + ',"left","' + vRowType + '")>' ;
 
 			      vLeftTable += 
                   '  <TD class=gdatehead style="WIDTH: 15px; HEIGHT: 20px; BORDER-TOP: #efefef 1px solid; FONT-SIZE: 12px; BORDER-LEFT: #efefef 1px solid;">&nbsp;</TD>' +
@@ -1336,9 +1336,9 @@ Complete-Displays task percent complete</p>
 
                if( vTaskList[i].getGroup()) {
                   if( vTaskList[i].getOpen() == 1) 
-                     vLeftTable += '<SPAN id="group_' + vID + '" style="color:#000000; cursor:pointer; font-weight:bold; FONT-SIZE: 12px;" onclick="JSGantt.folder(' + vID + ','+vGanttVar+');'+vGanttVar+'.DrawDependencies();">&ndash;</span><span style="color:#000000">&nbsp</SPAN>' ;
+                      vLeftTable += '<SPAN id="' + vGanttVar + "_group_" + vID + '" style="color:#000000; cursor:pointer; font-weight:bold; FONT-SIZE: 12px;" onclick="JSGantt.folder(' + vID + ','+vGanttVar+');'+vGanttVar+'.DrawDependencies();">&ndash;</span><span style="color:#000000">&nbsp</SPAN>' ;
                   else
-                     vLeftTable += '<SPAN id="group_' + vID + '" style="color:#000000; cursor:pointer; font-weight:bold; FONT-SIZE: 12px;" onclick="JSGantt.folder(' + vID + ','+vGanttVar+');'+vGanttVar+'.DrawDependencies();">+</span><span style="color:#000000">&nbsp</SPAN>' ;
+                      vLeftTable += '<SPAN id="' + vGanttVar + "_group_" + vID + '" style="color:#000000; cursor:pointer; font-weight:bold; FONT-SIZE: 12px;" onclick="JSGantt.folder(' + vID + ','+vGanttVar+');'+vGanttVar+'.DrawDependencies();">+</span><span style="color:#000000">&nbsp</SPAN>' ;
 				 
                } else {
 
@@ -1737,7 +1737,7 @@ Complete-Displays task percent complete</p>
                 else
                 {
                     vTaskRight = (Date.parse(vTaskList[i].getEnd()) - Date.parse(vTaskList[i].getStart())) / (24 * 60 * 60 * 1000) + 1/vColUnit;
-                    vTaskLeft = Math.ceil((Date.parse(vTaskList[i].getStart()) - Date.parse(vMinDate)) / (24 * 60 * 60 * 1000));
+                    vTaskLeft = Math.ceil((Date.parse(vTaskList[i].getStart()) - Date.parse(vMinDate)) / (24 * 60 * 60 * 1000));
                     if (vFormat='day')
                     {
                         vTaskRight += 1;
@@ -1855,7 +1855,7 @@ Complete-Displays task percent complete</p>
 * @method mouseOver
 * @return {Void}
 */  this.mouseOver = function( pObj, pID, pPos, pType ) {
-      if( pPos == 'right' )  vID = 'child_' + pID;
+    if( pPos == 'right' )  vID = this.getID()+'_child_' + pID;
       else vID = 'childrow_' + pID;
       
       pObj.bgColor = "#ffffaa";
@@ -1868,7 +1868,7 @@ Complete-Displays task percent complete</p>
 * @method mouseOut
 * @return {Void}
 */  this.mouseOut = function( pObj, pID, pPos, pType ) {
-      if( pPos == 'right' )  vID = 'child_' + pID;
+    if( pPos == 'right' )  vID = this.getID()+'_child_' + pID;
       else vID = 'childrow_' + pID;
       
       pObj.bgColor = "#ffffff";
@@ -2231,6 +2231,11 @@ JSGantt.changeFormat =      function(pFormat,ganttObj) {
 * @param ganttObj {GanttChart} - The gantt object
 * @return {void}
 */
+
+/* FIXME - this is an incomplete fix.  It seems to work on the first
+ * gantt on a page but when you close a group on the second Gantt, the
+ * first chart changes.
+ */
 JSGantt.folder= function (pID,ganttObj) {
 
    var vList = ganttObj.getList();
@@ -2238,15 +2243,16 @@ JSGantt.folder= function (pID,ganttObj) {
    for(i = 0; i < vList.length; i++)
    {
       if(vList[i].getID() == pID) {
+         var objID = ganttObj.getID()+"_group_"+pID;
 
          if( vList[i].getOpen() == 1 ) {
             vList[i].setOpen(0);
             JSGantt.hide(pID,ganttObj);
 
             if (JSGantt.isIE()) 
-               {JSGantt.findObj('group_'+pID).innerText = '+';}
+             {JSGantt.findObj(objID).innerText = '+';}
             else
-               {JSGantt.findObj('group_'+pID).textContent = '+';}
+             {JSGantt.findObj(objID).textContent = '+';}
 				
          } else {
 
@@ -2255,9 +2261,9 @@ JSGantt.folder= function (pID,ganttObj) {
             JSGantt.show(pID, 1, ganttObj);
 
                if (JSGantt.isIE()) 
-                  {JSGantt.findObj('group_'+pID).innerText = '-';}
+             {JSGantt.findObj(objID).innerText = '-';}
                else
-                  {JSGantt.findObj('group_'+pID).textContent = '-';}
+             {JSGantt.findObj(objID).textContent = '-';}
 
          }
 
@@ -2281,7 +2287,7 @@ JSGantt.hide=     function (pID,ganttObj) {
    {
       if(vList[i].getParent() == pID) {
          vID = vList[i].getID();
-         JSGantt.findObj('child_' + vID).style.display = "none";
+          JSGantt.findObj(ganttObj.getID()+'_child_' + vID).style.display = "none";
          JSGantt.findObj(ganttObj.getID()+'_childgrid_' + vID).style.display = "none";
          vList[i].setVisible(0);
          if(vList[i].getGroup() == 1) 
@@ -2310,16 +2316,16 @@ JSGantt.show =  function (pID, pTop, ganttObj) {
          if(pTop == 1) {
             if (JSGantt.isIE()) { // IE;
 
-               if( JSGantt.findObj('group_'+pID).innerText == '+') {
-                  JSGantt.findObj('child_'+vID).style.display = "";
+		if( JSGantt.findObj(ganttObj.getID()+"_group_"+pID).innerText == '+') {
+                    JSGantt.findObj(ganttObj.getID()+'_child_'+vID).style.display = "";
                   JSGantt.findObj(ganttObj.getID()+'_childgrid_'+vID).style.display = "";
                   vList[i].setVisible(1);
                }
 
             } else {
  
-               if( JSGantt.findObj('group_'+pID).textContent == '+') {
-                  JSGantt.findObj('child_'+vID).style.display = "";
+		if( JSGantt.findObj(ganttObj.getID()+"_group_"+pID).textContent == '+') {
+                    JSGantt.findObj(ganttObj.getID()+'_child_'+vID).style.display = "";
                   JSGantt.findObj(ganttObj.getID()+'_childgrid_'+vID).style.display = "";
                   vList[i].setVisible(1);
                }
@@ -2329,16 +2335,16 @@ JSGantt.show =  function (pID, pTop, ganttObj) {
          } else {
 
             if (JSGantt.isIE()) { // IE;
-               if( JSGantt.findObj('group_'+pID).innerText == '-') {
-                  JSGantt.findObj('child_'+vID).style.display = "";
+		if( JSGantt.findObj(ganttObj.getID()+"_group_"+pID).innerText == '-') {
+                    JSGantt.findObj(ganttObj.getID()+'_child_'+vID).style.display = "";
                   JSGantt.findObj(ganttObj.getID()+'_childgrid_'+vID).style.display = "";
                   vList[i].setVisible(1);
                }
 
             } else {
 
-               if( JSGantt.findObj('group_'+pID).textContent == '-') {
-                  JSGantt.findObj('child_'+vID).style.display = "";
+		if( JSGantt.findObj(ganttObj.getID()+"_group_"+pID).textContent == '-') {
+                    JSGantt.findObj(ganttObj.getID()+'_child_'+vID).style.display = "";
                   JSGantt.findObj(ganttObj.getID()+'_childgrid_'+vID).style.display = "";
                   vList[i].setVisible(1);
                }
