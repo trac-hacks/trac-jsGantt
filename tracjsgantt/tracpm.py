@@ -2757,26 +2757,27 @@ class TicketRescheduler(Component):
                            [t['id'] for t in idle])
 
             # And note idling in schedule history
-            valuesClause = ','.join(('(%s,%s,%s,%s,%s,%s)',) * len(idle))
             values = []
             for t in idle:
-                values.append(t['id'])
-                values.append(to_utimestamp(dbTime))
-                values.append(to_utimestamp(self.pm.start(t)))
-                values.append(to_utimestamp(self.pm.finish(t)))
+                value = (t['id'], 
+                         to_utimestamp(dbTime),
+                         to_utimestamp(self.pm.start(t)),
+                         to_utimestamp(self.pm.finish(t)))
+
                 if t['status'] == 'closed':
-                    values.append(to_utimestamp(self.pm.start(t)))
-                    values.append(to_utimestamp(self.pm.finish(t)))
+                    value += (to_utimestamp(self.pm.start(t)),
+                              to_utimestamp(self.pm.finish(t)))
                 else:
-                    values.append(None)
-                    values.append(None)
+                    value += (None, None)
+
+                values.append(value)
 
             # Update schedule history
-            cursor.execute('INSERT INTO schedule_change' + \
-                               ' (ticket, time,' + \
-                               ' oldstart, oldfinish,'
-                               ' newstart, newfinish)' + \
-                               ' VALUES %s' % valuesClause,
+            cursor.executemany('INSERT INTO schedule_change' + \
+                                   ' (ticket, time,' + \
+                                   ' oldstart, oldfinish,'
+                                   ' newstart, newfinish)' + \
+                                   ' VALUES (%s,%s,%s,%s,%s,%s)',
                            values)
             end = datetime.now()
             profile.append([ 'idling', len(idle), end - start ])
@@ -2813,15 +2814,18 @@ class TicketRescheduler(Component):
             values = []
             for t in tickets:
                 if t['id'] in toUpdate:
+                    value = ()
                     # Index history by ticket ID and time
-                    values.append(t['id'])
-                    values.append(to_utimestamp(dbTime))
+                    value += (t['id'], 
+                              to_utimestamp(dbTime))
                     # Old start and finish
-                    values.append(historyValues[t['id']][0])
-                    values.append(historyValues[t['id']][1])
+                    value += (historyValues[t['id']][0],
+                              historyValues[t['id']][1])
                     # New start and finish
-                    values.append(to_utimestamp(self.pm.start(t)))
-                    values.append(to_utimestamp(self.pm.finish(t)))
+                    value += (to_utimestamp(self.pm.start(t)),
+                              to_utimestamp(self.pm.finish(t)))
+
+                    values.append(value)
 
                     cursor.execute('UPDATE schedule'
                                    ' SET start=%s, finish=%s'
@@ -2833,14 +2837,12 @@ class TicketRescheduler(Component):
 
             # Third, insert the history for the updated tickets.
             if len(toUpdate) != 0:
-                valuesClause = ','.join(('(%s,%s,%s,%s,%s,%s)',)
-                                        * len(toUpdate))
-                cursor.execute('INSERT INTO schedule_change' + \
-                                   ' (ticket, time,' + \
-                                   ' oldstart, oldfinish,' + \
-                                   ' newstart, newfinish)' + \
-                                   ' VALUES %s' % valuesClause,
-                               values)
+                cursor.executemany('INSERT INTO schedule_change' + \
+                                       ' (ticket, time,' + \
+                                       ' oldstart, oldfinish,' + \
+                                       ' newstart, newfinish)' + \
+                                       ' VALUES (%s,%s,%s,%s,%s,%s)',
+                                   values)
 
             end = datetime.now()
             profile.append([ 'updating', len(toUpdate), end - start ])
@@ -2850,35 +2852,37 @@ class TicketRescheduler(Component):
             toInsert = set(ids) - toUpdate
             start = datetime.now()
             if len(toInsert) != 0:
-                valuesClause = ','.join(('(%s,%s,%s)',) * len(toInsert))
                 values = []
                 for t in tickets:
                     if t['id'] in toInsert:
-                        values.append(t['id'])
-                        values.append(to_utimestamp(self.pm.start(t)))
-                        values.append(to_utimestamp(self.pm.finish(t)))
-                cursor.execute('INSERT INTO schedule' + \
-                                   ' (ticket, start, finish)' + \
-                                   ' VALUES %s' % valuesClause,
-                               values)
+                        value = (t['id'],
+                                 to_utimestamp(self.pm.start(t)),
+                                 to_utimestamp(self.pm.finish(t)))
+
+                        values.append(value)
+                cursor.executemany('INSERT INTO schedule' + \
+                                       ' (ticket, start, finish)' + \
+                                       ' VALUES (%s,%s,%s)',
+                                   values)
 
 
                 # Finally, add history records to schedule_change
                 # for newly scheduled tickets.
-                valuesClause = ','.join(('(%s,%s,%s,%s)',) * len(toInsert))
                 values = []
                 for t in tickets:
                     if t['id'] in toInsert:
-                        values.append(t['id'])
-                        values.append(to_utimestamp(dbTime))
                         # Old start and finish are null
-                        values.append(to_utimestamp(self.pm.start(t)))
-                        values.append(to_utimestamp(self.pm.finish(t)))
-                cursor.execute('INSERT INTO schedule_change' + \
-                                   ' (ticket, time,' + \
-                                   ' newstart, newfinish)' + \
-                                   ' VALUES %s' % valuesClause,
-                               values)
+                        value = (t['id'],
+                                 to_utimestamp(dbTime),
+                                 to_utimestamp(self.pm.start(t)),
+                                 to_utimestamp(self.pm.finish(t)))
+
+                        values.append(value)
+                cursor.executemany('INSERT INTO schedule_change' + \
+                                       ' (ticket, time,' + \
+                                       ' newstart, newfinish)' + \
+                                       ' VALUES (%s,%s,%s,%s)',
+                                   values)
 
             end = datetime.now()
             profile.append([ 'inserting', len(toInsert), end - start ])
