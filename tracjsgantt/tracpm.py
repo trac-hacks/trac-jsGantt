@@ -1,3 +1,11 @@
+# -*- coding: utf-8 -*-
+#
+# Copyright (C) 2010-2014 Chris Nelson <Chris.Nelson@SIXNET.com>
+# All rights reserved.
+#
+# This software is licensed as described in the file COPYING, which
+# you should have received as part of this distribution.
+
 import re
 import time
 import math
@@ -351,7 +359,7 @@ class TracPM(Component):
             except:
                 raise TracError('Ticket %s has an invalid %s value, "%s".' \
                                     ' It should match the format "%s".' %
-                                (ticket['id'], 
+                                (ticket['id'],
                                  self.fields[field],
                                  ticket[self.fields[field]],
                                  self.dbDateFormat))
@@ -2330,7 +2338,7 @@ class TicketRescheduler(Component):
             inClause = "IN (%s)" % ','.join(('%s',) * len(ids))
             cursor = db.cursor()
             cursor.execute(("SELECT DISTINCT owner FROM ticket "
-                            "WHERE id " + 
+                            "WHERE id " +
                            inClause),
                            list(ids))
             owners = [row[0] for row in cursor]
@@ -2494,9 +2502,9 @@ class TicketRescheduler(Component):
 
             # Predecessors and successors
             for linkField in ['pred', 'succ']:
-                  t[linkFieldNames[linkField]] = \
-                        [tid for tid in t[linkFieldNames[linkField]]
-                         if tid in ids]
+                t[linkFieldNames[linkField]] = \
+                      [tid for tid in t[linkFieldNames[linkField]]
+                       if tid in ids]
 
     # Remove closed tickets.
     #
@@ -2759,7 +2767,7 @@ class TicketRescheduler(Component):
             # And note idling in schedule history
             values = []
             for t in idle:
-                value = (t['id'], 
+                value = (t['id'],
                          to_utimestamp(dbTime),
                          to_utimestamp(self.pm.start(t)),
                          to_utimestamp(self.pm.finish(t)))
@@ -2816,7 +2824,7 @@ class TicketRescheduler(Component):
                 if t['id'] in toUpdate:
                     value = ()
                     # Index history by ticket ID and time
-                    value += (t['id'], 
+                    value += (t['id'],
                               to_utimestamp(dbTime))
                     # Old start and finish
                     value += (historyValues[t['id']][0],

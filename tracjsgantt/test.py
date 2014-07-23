@@ -1,3 +1,11 @@
+# -*- coding: utf-8 -*-
+#
+# Copyright (C) 2010-2014 Chris Nelson <Chris.Nelson@SIXNET.com>
+# All rights reserved.
+#
+# This software is licensed as described in the file COPYING, which
+# you should have received as part of this distribution.
+
 import sys
 import os
 import tempfile
@@ -25,7 +33,7 @@ class TracPMTestCase(unittest.TestCase):
         instancedir = os.path.join(tempfile.gettempdir(), 'test-PM%d' % self.index[0])
         self.index[0] += 1
         if os.path.exists(instancedir):
-           shutil.rmtree(instancedir, False)
+            shutil.rmtree(instancedir, False)
         env = Environment(instancedir, create=True)
         open(os.path.join(os.path.join(instancedir, 'conf'), 'trac.ini'), 'a').write('\n' + configuration + '\n')
         return Environment(instancedir)
@@ -55,10 +63,10 @@ class TracPMTestCase(unittest.TestCase):
         from difflib import Differ
         d = Differ()
         def readall(ext): return open(join(testdir, testname + ext), 'rb').readlines()
-        result = d.compare(readall('.ctl'), 
+        result = d.compare(readall('.ctl'),
                           readall('.out'))
         lines = [ line for line in result if line[0] != ' ']
-        self.assertEquals(0, len(lines)) 
+        self.assertEquals(0, len(lines))
 
     def test_resource_leveling_0_ASAP(self):
         env = self._setup()
@@ -79,7 +87,7 @@ class TracPMTestCase(unittest.TestCase):
 
     def test_resource_leveling_1_ASAP(self):
         env = self._setup()
-        
+
         options = {'doResourceLeveling': '1', 'hoursPerDay': 8, 'useActuals': False,
                    'schedule': 'asap', 'force': True, 'start': '2007-01-01'}
 
@@ -93,7 +101,7 @@ class TracPMTestCase(unittest.TestCase):
         tickets.append(copy.copy(ticket))
 
         self._do_test_diffs(env, options, tickets, self._get_data, 'test_resource_leveling_1_ASAP')
-        
+
 def suite():
     return unittest.makeSuite(TracPMTestCase, 'test')
 
