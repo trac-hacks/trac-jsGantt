@@ -1177,7 +1177,7 @@ class TracPM(Component):
 
         # Default to getting all tickets
         if 'max' not in query_args:
-            quary_args['max'] = 0
+            query_args['max'] = 0
 
         # Tell the query what columns to return
         query_args['col'] = "|".join(self.queryFields() | fields)
