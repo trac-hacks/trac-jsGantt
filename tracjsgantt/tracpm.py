@@ -2914,46 +2914,46 @@ class TicketRescheduler(Component):
         # Each entry is [ step, ticketcount, time ]
         profile = []
 
-        db = self.env.get_db_cnx()
-        cursor = db.cursor()
+        with self.env.db_query as db:
+            cursor = db.cursor()
 
-        # Get IDs of active goals
-        start = datetime.now()
-        inClause = 'IN (%s)' % \
-            ','.join(('%s',) * len(self.pm.activeGoalStatuses))
-        cursor.execute('SELECT id FROM ticket' + \
-                           ' WHERE type = %s' + \
-                           ' AND status ' + inClause,
-                       [self.pm.goalTicketType] +
-                        self.pm.activeGoalStatuses)
-        activeGoals = ['%s' % row[0] for row in cursor]
-        end = datetime.now()
-        profile.append([ 'getting active goals',
-                         len(activeGoals),
-                         end - start ])
+            # Get IDs of active goals
+            start = datetime.now()
+            inClause = 'IN (%s)' % \
+                ','.join(('%s',) * len(self.pm.activeGoalStatuses))
+            cursor.execute('SELECT id FROM ticket' + \
+                               ' WHERE type = %s' + \
+                               ' AND status ' + inClause,
+                           [self.pm.goalTicketType] +
+                            self.pm.activeGoalStatuses)
+            activeGoals = ['%s' % row[0] for row in cursor]
+            end = datetime.now()
+            profile.append([ 'getting active goals',
+                             len(activeGoals),
+                             end - start ])
 
-        # Get IDs of tickets required for those goals
-        #
-        # NOTE: This includes closed tickets which are predecessors of
-        # work still to be done.
-        start = datetime.now()
-        nowActive = self.pm.preQuery({'goal': '|'.join(activeGoals)})
-        end = datetime.now()
-        profile.append([ 'getting active tickets',
-                         len(nowActive),
-                         end - start ])
+            # Get IDs of tickets required for those goals
+            #
+            # NOTE: This includes closed tickets which are predecessors of
+            # work still to be done.
+            start = datetime.now()
+            nowActive = self.pm.preQuery({'goal': '|'.join(activeGoals)})
+            end = datetime.now()
+            profile.append([ 'getting active tickets',
+                             len(nowActive),
+                             end - start ])
 
-        # Get IDs of tickets that were active before this change
-        #
-        # NOTE: In the steady state, there should be no closed tickets
-        # in the schedule.  Why schedule work that is already complete?
-        start = datetime.now()
-        cursor.execute('SELECT ticket FROM schedule')
-        wasActive = set(['%s' % row[0] for row in cursor])
-        end = datetime.now()
-        profile.append([ 'getting scheduled tickets',
-                         len(wasActive),
-                         end - start ])
+            # Get IDs of tickets that were active before this change
+            #
+            # NOTE: In the steady state, there should be no closed tickets
+            # in the schedule.  Why schedule work that is already complete?
+            start = datetime.now()
+            cursor.execute('SELECT ticket FROM schedule')
+            wasActive = set(['%s' % row[0] for row in cursor])
+            end = datetime.now()
+            profile.append([ 'getting scheduled tickets',
+                             len(wasActive),
+                             end - start ])
 
         # There are four possibilities for the state of the changed
         # ticket relative to the sets of formerly or currently active
