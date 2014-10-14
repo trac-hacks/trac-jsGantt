@@ -641,57 +641,57 @@ class TracPM(Component):
             return []
 
         node_list = [format % tid for tid in origins]
-        db = self.env.get_db_cnx()
-        cursor = db.cursor()
-        # Query from external table
-        if self.isRelation(field):
-            relation = self.relations[self.sources[field]]
-            # Forward query
-            if field == relation[0]:
-                (f1, f2, tbl, src, dst) = relation
-            # Reverse query
-            elif field == relation[1]:
-                (f1, f2, tbl, dst, src) = relation
+        with self.env.db_query as db:
+            cursor = db.cursor()
+            # Query from external table
+            if self.isRelation(field):
+                relation = self.relations[self.sources[field]]
+                # Forward query
+                if field == relation[0]:
+                    (f1, f2, tbl, src, dst) = relation
+                # Reverse query
+                elif field == relation[1]:
+                    (f1, f2, tbl, dst, src) = relation
+                else:
+                    raise TracError('Relation configuration error for %s' %
+                                    field)
+
+                # Build up enough instances of %s to represent all the
+                # nodes.  The DB API will replace them with items from
+                # node_list, properly quoted for the DB back-end.
+                #
+                # In 0.12, we could do
+                #
+                #   ','.join([db.quote(node) for node in node_list])
+                #
+                # but 0.11 doesn't have db.quote()
+                inClause = "IN (%s)" % ','.join(('%s',) * len(node_list))
+                cursor.execute("SELECT %s FROM %s WHERE %s " % \
+                                   (dst, tbl, src) + \
+                                   inClause,
+                               node_list)
+            # Query from custom field
+            elif self.isField(field):
+                fieldName = self.fields[self.sources[field]]
+                # See explantion in relation handling, above.
+                inClause = "IN (%s)" % ','.join(('%s',) * len(node_list))
+                cursor.execute("SELECT t.id "
+                               "FROM ticket AS t "
+                               "LEFT OUTER JOIN ticket_custom AS p ON "
+                               "    (t.id=p.ticket AND p.name=%s) "
+                               "WHERE p.value " + inClause,
+                               [fieldName] + node_list)
+            # We really can't get here because the callers test for
+            # isCfg() but it's nice form to have an else.
             else:
-                raise TracError('Relation configuration error for %s' %
+                raise TracError('Cannot expand %s; '
+                                'Not configured as a field or relation.' %
                                 field)
 
-            # Build up enough instances of %s to represent all the
-            # nodes.  The DB API will replace them with items from
-            # node_list, properly quoted for the DB back-end.
-            #
-            # In 0.12, we could do
-            #
-            #   ','.join([db.quote(node) for node in node_list])
-            #
-            # but 0.11 doesn't have db.quote()
-            inClause = "IN (%s)" % ','.join(('%s',) * len(node_list))
-            cursor.execute("SELECT %s FROM %s WHERE %s " % \
-                               (dst, tbl, src) + \
-                               inClause,
-                           node_list)
-        # Query from custom field
-        elif self.isField(field):
-            fieldName = self.fields[self.sources[field]]
-            # See explantion in relation handling, above.
-            inClause = "IN (%s)" % ','.join(('%s',) * len(node_list))
-            cursor.execute("SELECT t.id "
-                           "FROM ticket AS t "
-                           "LEFT OUTER JOIN ticket_custom AS p ON "
-                           "    (t.id=p.ticket AND p.name=%s) "
-                           "WHERE p.value " + inClause,
-                           [fieldName] + node_list)
-        # We really can't get here because the callers test for
-        # isCfg() but it's nice form to have an else.
-        else:
-            raise TracError('Cannot expand %s; '
-                            'Not configured as a field or relation.' %
-                            field)
-
-        # Get tickets IDs of related tickets as strings
-        nodes = ['%s' % row[0] for row in cursor]
-        # Filter out ticket IDs we already know about
-        nodes = [tid for tid in nodes if tid not in origins]
+            # Get tickets IDs of related tickets as strings
+            nodes = ['%s' % row[0] for row in cursor]
+            # Filter out ticket IDs we already know about
+            nodes = [tid for tid in nodes if tid not in origins]
 
         return nodes + self._followLink(nodes, field, format, depth - 1)
 
