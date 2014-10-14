@@ -916,72 +916,72 @@ class TracPM(Component):
     #  * Closed tickets (those in the "closed" state) have
     #    _actual_finish set from the last transition into "closed".
     def getTicketDates(self, tickets):
-        db = self.env.get_db_cnx()
-        cursor = db.cursor()
+        with self.env.db_query as db:
+            cursor = db.cursor()
 
-        # Table indexed by ticket ID for faster updates
-        ticketsByID = {}
-        for t in tickets:
-            ticketsByID[t['id']] = t
+            # Table indexed by ticket ID for faster updates
+            ticketsByID = {}
+            for t in tickets:
+                ticketsByID[t['id']] = t
 
-        # All the tickets we care about.
-        ids = ticketsByID.keys()
+            # All the tickets we care about.
+            ids = ticketsByID.keys()
 
-        # Get dates from precomputed schedule, if any.
-        inClause = "IN (%s)" % ','.join(('%s',) * len(ids))
-        cursor.execute("SELECT ticket, start, finish" +
-                       " FROM schedule WHERE ticket " +
-                       inClause,
-                       ids)
-        for row in cursor:
-            tid, start, finish = row
-            ticketsByID[tid]['_sched_start'] = start
-            ticketsByID[tid]['_sched_finish'] = finish
-
-        # Get actual start for active tickets. (Don't do this for
-        # milestones.)
-        taskIDs = [t['id'] for t in tickets if not self.isMilestone(t)]
-        if len(taskIDs) > 0:
-            inClause = "IN (%s)" % ','.join(('%s',) * len(taskIDs))
-            cursor.execute("SELECT id, x.time AS begunTime" +
-                           " FROM ticket" +
-                           " INNER JOIN ticket_change AS x" +
-                           "     ON (x.ticket = ticket.id AND x.field = %s)" +
-                           " WHERE x.time = (SELECT MIN(time)" +
-                           "                 FROM ticket_change AS y" +
-                           "                 WHERE y.ticket = ticket.id " +
-                           "                     AND y.field = %s" +
-                           "                 GROUP BY y.ticket)" +
-                           "     AND x.oldvalue = %s " +
-                           "     AND ticket.id " +
+            # Get dates from precomputed schedule, if any.
+            inClause = "IN (%s)" % ','.join(('%s',) * len(ids))
+            cursor.execute("SELECT ticket, start, finish" +
+                           " FROM schedule WHERE ticket " +
                            inClause,
-                           ['status', 'status', 'new'] + taskIDs)
+                           ids)
             for row in cursor:
-                (tid, begunTime) = row
-                ticketsByID[tid]['_actual_start'] = begunTime
+                tid, start, finish = row
+                ticketsByID[tid]['_sched_start'] = start
+                ticketsByID[tid]['_sched_finish'] = finish
+
+            # Get actual start for active tickets. (Don't do this for
+            # milestones.)
+            taskIDs = [t['id'] for t in tickets if not self.isMilestone(t)]
+            if len(taskIDs) > 0:
+                inClause = "IN (%s)" % ','.join(('%s',) * len(taskIDs))
+                cursor.execute("SELECT id, x.time AS begunTime" +
+                               " FROM ticket" +
+                               " INNER JOIN ticket_change AS x" +
+                               "     ON (x.ticket = ticket.id AND x.field = %s)" +
+                               " WHERE x.time = (SELECT MIN(time)" +
+                               "                 FROM ticket_change AS y" +
+                               "                 WHERE y.ticket = ticket.id " +
+                               "                     AND y.field = %s" +
+                               "                 GROUP BY y.ticket)" +
+                               "     AND x.oldvalue = %s " +
+                               "     AND ticket.id " +
+                               inClause,
+                               ['status', 'status', 'new'] + taskIDs)
+                for row in cursor:
+                    (tid, begunTime) = row
+                    ticketsByID[tid]['_actual_start'] = begunTime
 
 
-        # Get actual finish for closed tickets.
-        # FIXME - omit milestone as above?
-        closedIDs = [t['id'] for t in tickets if t['status'] == 'closed']
-        if len(closedIDs) > 0:
-            inClause = "IN (%s)" % ','.join(('%s',) * len(closedIDs))
-            cursor.execute("SELECT id, x.time AS closedTime" +
-                           " FROM ticket" +
-                           " INNER JOIN ticket_change AS x" +
-                           "     ON (x.ticket = ticket.id AND x.field = %s)" +
-                           " WHERE x.time = (SELECT MAX(time)" +
-                           "                 FROM ticket_change AS y" +
-                           "                 WHERE y.ticket = ticket.id " +
-                           "                     AND y.field = %s" +
-                           "                 GROUP BY y.ticket)" +
-                           "     AND x.newvalue = %s " +
-                           "     AND ticket.id " +
-                           inClause,
-                           ['status', 'status', 'closed'] + closedIDs)
-            for row in cursor:
-                (tid, closedTime) = row
-                ticketsByID[tid]['_actual_finish'] = closedTime
+            # Get actual finish for closed tickets.
+            # FIXME - omit milestone as above?
+            closedIDs = [t['id'] for t in tickets if t['status'] == 'closed']
+            if len(closedIDs) > 0:
+                inClause = "IN (%s)" % ','.join(('%s',) * len(closedIDs))
+                cursor.execute("SELECT id, x.time AS closedTime" +
+                               " FROM ticket" +
+                               " INNER JOIN ticket_change AS x" +
+                               "     ON (x.ticket = ticket.id AND x.field = %s)" +
+                               " WHERE x.time = (SELECT MAX(time)" +
+                               "                 FROM ticket_change AS y" +
+                               "                 WHERE y.ticket = ticket.id " +
+                               "                     AND y.field = %s" +
+                               "                 GROUP BY y.ticket)" +
+                               "     AND x.newvalue = %s " +
+                               "     AND ticket.id " +
+                               inClause,
+                               ['status', 'status', 'closed'] + closedIDs)
+                for row in cursor:
+                    (tid, closedTime) = row
+                    ticketsByID[tid]['_actual_finish'] = closedTime
 
 
     # Process the tickets to normalize formats, etc. to simplify
