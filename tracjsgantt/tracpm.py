@@ -2351,15 +2351,15 @@ class TicketRescheduler(Component):
             # FIXME - this may fix a bug I don't have any more.
             if len(owners) == 0:
                 return set()
-            db = self.env.get_db_cnx()
-            inClause = "IN (%s)" % ','.join(('%s',) * len(owners))
-            cursor = db.cursor()
-            cursor.execute(("SELECT id FROM ticket "
-                            "WHERE status!=%s AND owner " +
-                           inClause),
-                           ['closed'] + list(owners))
-            ids = ['%s' % row[0] for row in cursor]
-            return set(ids)
+            with self.env.db_query as db:
+                inClause = "IN (%s)" % ','.join(('%s',) * len(owners))
+                cursor = db.cursor()
+                cursor.execute(("SELECT id FROM ticket "
+                                "WHERE status!=%s AND owner " +
+                               inClause),
+                               ['closed'] + list(owners))
+                ids = ['%s' % row[0] for row in cursor]
+                return set(ids)
 
 
         # Find all the tickets affected by the old values.  For
