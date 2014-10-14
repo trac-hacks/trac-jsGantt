@@ -1378,13 +1378,13 @@ class BaseSorter:
     # sort on 1, 2, 3, not 'critical', 'blocker', 'major', etc.
     def _buildEnumMap(self, field):
         classMap = {}
-        db = self.env.get_db_cnx()
-        cursor = db.cursor()
-        cursor.execute("SELECT name," +
-                       db.cast('value', 'int') +
-                       " FROM enum WHERE type=%s", (field,))
-        for name, value in cursor:
-            classMap[name] = value
+        with self.env.db_query as db:
+            cursor = db.cursor()
+            cursor.execute("SELECT name," +
+                           db.cast('value', 'int') +
+                           " FROM enum WHERE type=%s", (field,))
+            for name, value in cursor:
+                classMap[name] = value
 
         return classMap
 
