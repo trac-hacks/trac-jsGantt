@@ -832,76 +832,76 @@ class TracPM(Component):
             tid = 0
 
             # Get the milestones and their due dates
-            db = self.env.get_db_cnx()
-            cursor = db.cursor()
-            # See explanation in _followLink()
-            inClause = "IN (%s)" % ','.join(('%s',) * len(milestones))
-            cursor.execute("SELECT name, due, completed FROM milestone " +
-                           "WHERE name " + inClause,
-                           milestones)
-            for row in cursor:
-                msName, msDueDate, msCompletedDate = row
+            with self.env.db_query as db:
+                cursor = db.cursor()
+                # See explanation in _followLink()
+                inClause = "IN (%s)" % ','.join(('%s',) * len(milestones))
+                cursor.execute("SELECT name, due, completed FROM milestone " +
+                               "WHERE name " + inClause,
+                               milestones)
+                for row in cursor:
+                    msName, msDueDate, msCompletedDate = row
 
-                tid = tid - 1
-                milestoneTicket = self._pseudoTicket(tid,
-                                                     msName,
-                                                     'Milestone %s' % msName,
-                                                     msName)
+                    tid = tid - 1
+                    milestoneTicket = self._pseudoTicket(tid,
+                                                         msName,
+                                                         'Milestone %s' % msName,
+                                                         msName)
 
-                # If the completed date is set (non-0), the milestone is closed"
-                if msCompletedDate:
-                    milestoneTicket['status'] = 'closed'
-                # Otherwise, use the configured open status
-                else:
-                    milestoneTicket['status'] = self.incompleteMilestoneStatus
-
-                # If there's no due date, let the scheduler set it.
-                if self.isCfg('finish'):
-                    ts = msDueDate
-                    if ts:
-                        # The scheduled start and finish, from the database
-                        milestoneTicket['_sched_start'] = ts
-                        milestoneTicket['_sched_finish'] = ts
-
-                        milestoneTicket[self.fields['finish']] = \
-                            format_date(ts, self.dbDateFormat)
+                    # If the completed date is set (non-0), the milestone is closed"
+                    if msCompletedDate:
+                        milestoneTicket['status'] = 'closed'
+                    # Otherwise, use the configured open status
                     else:
-                        milestoneTicket[self.fields['finish']] = ''
+                        milestoneTicket['status'] = self.incompleteMilestoneStatus
 
-                    # jsGantt ignores start for a milestone but we use it
-                    # for scheduling.
-                    if self.isCfg('start'):
-                        milestoneTicket[self.fields['start']] = \
-                              milestoneTicket[self.fields['finish']]
-                elif self.isCfg('start'):
-                    milestoneTicket[self.fields['start']] = ''
+                    # If there's no due date, let the scheduler set it.
+                    if self.isCfg('finish'):
+                        ts = msDueDate
+                        if ts:
+                            # The scheduled start and finish, from the database
+                            milestoneTicket['_sched_start'] = ts
+                            milestoneTicket['_sched_finish'] = ts
 
-                # Any ticket with this as a milestone and no
-                # successors has the milestone as a successor
-                if self.isCfg(['pred', 'succ']):
-                    pred = []
-                    for t in tickets:
-                        if t['milestone'] == msName and \
-                                self.successors(t) == []:
-                            if self.isField('succ'):
-                                t[self.fields[self.sources['succ']]] = \
-                                    [ tid ]
-                            else:
-                                t['succ'] = [ tid ]
-                            pred.append(t['id'])
-                    if self.isField('pred'):
-                        milestoneTicket[self.fields[self.sources['pred']]] = \
-                            pred
-                    else:
-                        milestoneTicket['pred'] = pred
+                            milestoneTicket[self.fields['finish']] = \
+                                format_date(ts, self.dbDateFormat)
+                        else:
+                            milestoneTicket[self.fields['finish']] = ''
 
-                # A Trac milestone has no successors
-                if self.isField('succ'):
-                    milestoneTicket[self.fields[self.sources['succ']]] = []
-                elif self.isRelation('succ'):
-                    milestoneTicket['succ'] = []
+                        # jsGantt ignores start for a milestone but we use it
+                        # for scheduling.
+                        if self.isCfg('start'):
+                            milestoneTicket[self.fields['start']] = \
+                                  milestoneTicket[self.fields['finish']]
+                    elif self.isCfg('start'):
+                        milestoneTicket[self.fields['start']] = ''
 
-                tickets.append(milestoneTicket)
+                    # Any ticket with this as a milestone and no
+                    # successors has the milestone as a successor
+                    if self.isCfg(['pred', 'succ']):
+                        pred = []
+                        for t in tickets:
+                            if t['milestone'] == msName and \
+                                    self.successors(t) == []:
+                                if self.isField('succ'):
+                                    t[self.fields[self.sources['succ']]] = \
+                                        [ tid ]
+                                else:
+                                    t['succ'] = [ tid ]
+                                pred.append(t['id'])
+                        if self.isField('pred'):
+                            milestoneTicket[self.fields[self.sources['pred']]] = \
+                                pred
+                        else:
+                            milestoneTicket['pred'] = pred
+
+                    # A Trac milestone has no successors
+                    if self.isField('succ'):
+                        milestoneTicket[self.fields[self.sources['succ']]] = []
+                    elif self.isRelation('succ'):
+                        milestoneTicket['succ'] = []
+
+                    tickets.append(milestoneTicket)
 
     # Get ticket dates from the database.
     #
