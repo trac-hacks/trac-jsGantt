@@ -709,12 +709,12 @@ class TracPM(Component):
                 this_ticket = matches.group(1)
 
         if options.get('scheduled'):
-            db = self.env.get_db_cnx()
-            cursor = db.cursor()
-            cursor.execute("SELECT ticket FROM schedule")
-            for row in cursor:
-                tid = row[0]
-                ids.add(str(tid))
+            with self.env.db_query as db:
+                cursor = db.cursor()
+                cursor.execute("SELECT ticket FROM schedule")
+                for row in cursor:
+                    tid = row[0]
+                    ids.add(str(tid))
 
         if options.get('root'):
             if not self.isCfg('parent'):
